@@ -25,4 +25,5 @@ export interface AppState {
   relationships: Relationship[];
   memories: MemoryCard[];
   aiColors: string[]; // Colors for the central liquid body
+  featuredLiked: boolean;
 }

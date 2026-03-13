@@ -23,6 +23,10 @@ export default function App() {
     setState(prev => ({ ...prev, activeTab: tab }));
   };
 
+  const toggleFeaturedLike = () => {
+    setState(prev => ({ ...prev, featuredLiked: !prev.featuredLiked }));
+  };
+
   useEffect(() => {
     const handleSetTab = (e: any) => {
       if (e.detail) setActiveTab(e.detail);
@@ -40,7 +44,7 @@ export default function App() {
 
   const renderTab = () => {
     switch (state.activeTab) {
-      case '主页': return <HomeTab state={state} />;
+      case '主页': return <HomeTab state={state} onToggleLike={toggleFeaturedLike} />;
       case '记忆': return <MemoryTab state={state} />;
       case 'AI助手': return <AIAssistantTab state={state} />;
       case '关系': return <RelationshipsTab state={state} />;

@@ -40,5 +40,6 @@ export const INITIAL_STATE: AppState = {
       emotion: 70
     }
   ],
-  aiColors: ['#22D3EE', '#3B82F6', '#9333EA'] // Cyan, Blue, Purple
+  aiColors: ['#22D3EE', '#3B82F6', '#9333EA'], // Cyan, Blue, Purple
+  featuredLiked: false
 };

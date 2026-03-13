@@ -67,7 +67,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
   );
 };
 
-export const HomeTab: React.FC<{ state: AppState }> = ({ state }) => (
+export const HomeTab: React.FC<{ state: AppState, onToggleLike?: () => void }> = ({ state, onToggleLike }) => (
   <div className="p-6 pb-32 space-y-8 bg-[#F8F9FA] min-h-screen">
     <header className="flex justify-between items-start">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -104,9 +104,16 @@ export const HomeTab: React.FC<{ state: AppState }> = ({ state }) => (
           <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">一年前的今天</p>
           <h3 className="text-white text-2xl font-medium serif">湖畔的宁静午后</h3>
         </div>
-        <div className="w-10 h-10 rounded-full glass flex items-center justify-center text-white">
-          <Heart size={18} fill="currentColor" />
-        </div>
+        <motion.button 
+          whileTap={{ scale: 0.8 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleLike?.();
+          }}
+          className={`w-10 h-10 rounded-full glass flex items-center justify-center transition-colors ${state.featuredLiked ? 'text-pink-500' : 'text-white'}`}
+        >
+          <Heart size={18} fill={state.featuredLiked ? "currentColor" : "none"} />
+        </motion.button>
       </div>
     </motion.div>
 
@@ -185,12 +192,13 @@ export const HomeTab: React.FC<{ state: AppState }> = ({ state }) => (
   </div>
 );
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
 export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
   const [isVoice, setIsVoice] = React.useState(false);
   const [isThinking, setIsThinking] = React.useState(false);
   const [isSpeaking, setIsSpeaking] = React.useState(false);
+  const [isListening, setIsListening] = React.useState(false);
   const [inputValue, setInputValue] = React.useState('');
   const [colors, setColors] = React.useState(['#E0F2F1', '#B2DFDB', '#80CBC4']);
   const [messages, setMessages] = React.useState<{ role: 'user' | 'ai'; content: string; type?: 'text' | 'image'; imageUrl?: string }[]>([
@@ -203,6 +211,66 @@ export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
   const [showSettings, setShowSettings] = React.useState(false);
 
   const voiceOptions = ['温柔', '磁性', '清亮', '沉稳', '活泼'];
+
+  const speakResponse = async (text: string) => {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: `用${voiceType}的语气说：${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { 
+                voiceName: voiceType === '温柔' ? 'Kore' : voiceType === '磁性' ? 'Fenrir' : 'Zephyr' 
+              },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        const audioSrc = `data:audio/mp3;base64,${base64Audio}`;
+        const audio = new Audio(audioSrc);
+        audio.play();
+      } else {
+        // Fallback to Web Speech API if Gemini TTS fails or returns no data
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        window.speechSynthesis.speak(utterance);
+      }
+    } catch (error) {
+      console.error("TTS Error:", error);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("您的浏览器不支持语音识别。");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputValue(transcript);
+      handleSendMessage(transcript);
+    };
+
+    recognition.start();
+  };
 
   const handleSendMessage = async (text?: string) => {
     const messageToSend = text || inputValue;
@@ -249,6 +317,7 @@ export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
       setIsThinking(false);
       setIsSpeaking(true);
       setMessages(prev => [...prev, { role: 'ai', content: finalReply }]);
+      speakResponse(finalReply);
       
       setTimeout(() => setIsSpeaking(false), Math.min(finalReply.length * 150, 4000));
     } catch (error) {
@@ -627,8 +696,9 @@ export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
             <motion.button 
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
+              onClick={isListening ? () => {} : startListening}
               className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all ${
-                isSpeaking ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-cyan-500'
+                isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-cyan-500'
               }`}
             >
               <Mic size={24} />
