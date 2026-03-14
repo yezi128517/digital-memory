@@ -53,8 +53,9 @@ export default function App() {
     }
   };
 
-  return (
-    <div className="max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-hidden font-sans border-x border-gray-100">
+ return (
+    // 修改点：w-full 确保在手机上铺满，sm:max-w-md 确保在电脑上才限制宽度
+    <div className="w-full sm:max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-x-hidden font-sans border-x border-gray-100 flex flex-col">
       <AnimatePresence mode="wait">
         <motion.div
           key={state.activeTab}
@@ -62,7 +63,8 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
-          className="min-h-screen"
+          // 修改点：flex-1 确保内容区域撑开，给底部导航留出位置
+          className="flex-1 pb-20" 
         >
           {renderTab()}
         </motion.div>
@@ -71,4 +73,3 @@ export default function App() {
       <BottomNav activeTab={state.activeTab} setActiveTab={setActiveTab} />
     </div>
   );
-}
