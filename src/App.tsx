@@ -35,7 +35,7 @@ export default function App() {
     return () => window.removeEventListener('setTab', handleSetTab);
   }, []);
 
-  // Simulate storage alert
+  // 模拟存储警报
   useEffect(() => {
     if (state.storageUsage >= 88) {
       console.log("椰子：存储占用已达 88%，建议进行断舍离，删除一些重复的照片。");
@@ -53,9 +53,15 @@ export default function App() {
     }
   };
 
- return (
-    // 修改点：w-full 确保在手机上铺满，sm:max-w-md 确保在电脑上才限制宽度
-    <div className="w-full sm:max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-x-hidden font-sans border-x border-gray-100 flex flex-col">
+  return (
+    /* 优化后的容器：
+      - w-full: 在手机上占满 100% 宽度，图标和文字会自动放大到正常比例
+      - sm:max-w-md: 只有在屏幕变大时（电脑端），才限制宽度为 448px 
+      - mx-auto: 电脑端水平居中
+      - flex flex-col: 方便控制内部布局
+    */
+    <div className="w-full sm:max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-x-hidden font-sans sm:border-x border-gray-100 flex flex-col">
+      
       <AnimatePresence mode="wait">
         <motion.div
           key={state.activeTab}
@@ -63,13 +69,15 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
-          // 修改点：flex-1 确保内容区域撑开，给底部导航留出位置
-          className="flex-1 pb-20" 
+          /* pb-24: 给底部导航栏留出足够的空白，防止内容被遮挡 */
+          className="flex-1 pb-24"
         >
           {renderTab()}
         </motion.div>
       </AnimatePresence>
 
+      {/* 底部导航栏 */}
       <BottomNav activeTab={state.activeTab} setActiveTab={setActiveTab} />
     </div>
   );
+}
