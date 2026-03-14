@@ -1093,7 +1093,7 @@ export const RelationshipsTab: React.FC<{ state: AppState }> = ({ state }) => {
           }}
           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
           whileHover={{ scale: 1.1 }}
-          className="w-28 h-28 bg-gradient-to-br from-[#8EBC94] to-[#A8D5AD] flex items-center justify-center text-white font-bold text-2xl z-10 shadow-[0_12px_32px_rgba(142,188,148,0.4)] cursor-pointer border border-white/20 backdrop-blur-md"
+          className="w-28 h-28 bg-gradient-to-br from-[#8EBC94] to-[#A8D5AD] flex items-center justify-center text-white font-bold text-2xl z-10 shadow-[0_12px_32px_rgba(142,188,148,0.4)] cursor-pointer border border-white/20 backdrop-blur-md rounded-full"
         >
           我
         </motion.div>
