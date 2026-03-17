@@ -1,230 +1,303 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Keyboard, Search, Settings, Plus, Heart, Users, Calendar, BarChart3, Home, Brain, User, Sparkles, X, ChevronRight, SlidersHorizontal, ShieldCheck, Bell, Database, Info } from 'lucide-react';
-import { TabType, AppState } from '../types';
+import { 
+  Home, Brain, Sparkles, Users, User, 
+  Search, Heart, Plus, ChevronRight, 
+  Mic, Settings, SlidersHorizontal, Palette,
+  ShieldCheck, Bell, Database, Image as ImageIcon,
+  Volume2, X, MapPin, Clock
+} from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { AppState, TabType, BottomNavProps, MusicApp, MemoryCard } from '../types';
+import { translations } from '../translations';
 
-interface BottomNavProps {
-  activeTab: TabType;
-  setActiveTab: (tab: TabType) => void;
-}
+// --- Shared Components ---
 
-export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
-  const tabs: { name: TabType; icon: React.ElementType }[] = [
-    { name: '主页', icon: Home },
-    { name: '记忆', icon: Brain },
-    { name: 'AI助手', icon: Sparkles },
-    { name: '关系', icon: Users },
-    { name: '个人', icon: User },
+const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({ isOpen, onClose, title, children }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          className="relative w-full max-w-sm sculpted-glass rounded-[40px] p-8 space-y-6 shadow-2xl border border-white/40"
+        >
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">{title}</h3>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+              <X size={24} />
+            </button>
+          </div>
+          {children}
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+);
+
+// --- Bottom Navigation ---
+
+export const BottomNav: React.FC<BottomNavProps & { language: string }> = ({ activeTab, setActiveTab, language }) => {
+  const t = (key: string) => translations[language]?.[key] || key;
+  
+  const tabs: { name: TabType; icon: React.ElementType; label: string }[] = [
+    { name: '主页', icon: Home, label: t('Home') },
+    { name: '记忆', icon: Brain, label: t('Memories') },
+    { name: 'AI助手', icon: Sparkles, label: t('AI Assistant') },
+    { name: '关系', icon: Users, label: t('Relationships') },
+    { name: '个人', icon: User, label: t('Profile') },
   ];
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 pt-3 pb-8 flex justify-between items-center z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.02)]">
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-md liquid-nav rounded-full px-4 py-3 flex justify-between items-center z-50 border border-white/40">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.name;
         
-        if (tab.name === 'AI助手') {
-          return (
-            <button
-              key={tab.name}
-              onClick={() => setActiveTab(tab.name)}
-              className={`relative -top-8 w-16 h-16 rounded-full flex items-center justify-center shadow-[0_20px_40px_rgba(6,182,212,0.3)] transition-all duration-500 ${
-                isActive ? 'bg-gradient-to-br from-cyan-400 to-emerald-400 text-white scale-110 rotate-12' : 'bg-gradient-to-br from-cyan-500 to-cyan-600 text-white'
-              }`}
-            >
-              <Icon size={32} fill={isActive ? "rgba(255,255,255,0.3)" : "none"} />
-              {isActive && (
-                <motion.div 
-                  layoutId="activeGlow"
-                  className="absolute inset-0 rounded-full bg-cyan-400 blur-2xl -z-10 opacity-60"
-                />
-              )}
-            </button>
-          );
-        }
-
         return (
           <button
             key={tab.name}
             onClick={() => setActiveTab(tab.name)}
-            className={`flex flex-col items-center gap-1.5 transition-all duration-300 group ${
-              isActive ? 'text-cyan-500' : 'text-gray-400 hover:text-gray-600'
-            }`}
+            className="relative flex flex-col items-center justify-center w-12 h-12 transition-all duration-500 group"
           >
-            <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-cyan-50' : 'bg-transparent'}`}>
-              <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+            {isActive && (
+              <motion.div 
+                layoutId="activeDrop"
+                className="absolute inset-0 active-drop rounded-full"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              />
+            )}
+            <div className={`relative z-10 p-2 rounded-full transition-all duration-300 ${isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:text-slate-600'}`}>
+              <Icon size={24} strokeWidth={isActive ? 2.5 : 1.5} />
             </div>
-            <span className={`text-[10px] font-bold tracking-tight ${isActive ? 'opacity-100' : 'opacity-60'}`}>
-              {tab.name}
+            <span className={`text-[8px] font-bold mt-1 transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
+              {tab.label}
             </span>
           </button>
         );
       })}
-      
-      {/* Home Indicator Line (iOS style) */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1.5 bg-gray-200 rounded-full opacity-40" />
     </div>
   );
 };
 
-export const HomeTab: React.FC<{ state: AppState, onToggleLike?: () => void }> = ({ state, onToggleLike }) => (
-  <div className="p-6 pb-32 space-y-8 bg-[#F8F9FA] min-h-screen">
-    <header className="flex justify-between items-start">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">星期二, 3月3日</p>
-        <h1 className="text-4xl font-medium mt-1 serif">Good Morning</h1>
-      </motion.div>
+// --- Home Tab ---
+
+export const HomeTab: React.FC<{ state: AppState, onToggleLike?: () => void }> = ({ state, onToggleLike }) => {
+  const t = (key: string) => translations[state.language]?.[key] || key;
+
+  const getEmotionColor = (score: number) => {
+    if (score > 80) return 'bg-emerald-400';
+    if (score > 60) return 'bg-amber-400';
+    return 'bg-rose-400';
+  };
+
+  return (
+    <div className="p-8 space-y-10 flex-1">
+      <header className="flex justify-between items-center pt-6">
+        <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }}>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em]">
+            {new Date().toLocaleDateString(state.language === 'English' ? 'en-US' : state.language === '日本語' ? 'ja-JP' : state.language === '한국어' ? 'ko-KR' : 'zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}
+          </p>
+          <h1 className="text-5xl font-black text-slate-900 mt-1 tracking-tighter">Memoa</h1>
+        </motion.div>
+        <motion.div 
+          whileHover={{ scale: 1.1 }}
+          className="w-14 h-14 rounded-full sculpted-glass p-0.5 cursor-pointer shadow-lg border border-white/40"
+        >
+          <img 
+            src="https://picsum.photos/seed/memoa-user/200/200" 
+            className="w-full h-full rounded-full object-cover" 
+            alt="avatar" 
+            referrerPolicy="no-referrer"
+          />
+        </motion.div>
+      </header>
+
+      {/* Featured Memory Card */}
       <motion.div 
-        whileHover={{ scale: 1.1 }}
-        className="w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center cursor-pointer overflow-hidden border-2 border-white"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileTap={{ scale: 0.98 }}
+        className="relative aspect-[16/10] rounded-[32px] overflow-hidden group cursor-pointer shadow-2xl prism-refraction"
       >
         <img 
-          src="https://images.unsplash.com/photo-1543158181-e6f9f670c5b5?auto=format&fit=crop&q=80&w=200" 
-          className="w-full h-full object-cover" 
-          alt="avatar" 
-          referrerPolicy="no-referrer"
+          src="https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&q=80&w=1200" 
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-105" 
+          alt="featured"
         />
-      </motion.div>
-    </header>
-
-    {/* Featured Memory Spotlight */}
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="relative h-48 rounded-[40px] overflow-hidden shadow-2xl group cursor-pointer"
-    >
-      <img 
-        src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&q=80&w=800" 
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-        alt="featured"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-      <div className="absolute bottom-6 left-8 right-8 flex justify-between items-end">
-        <div className="space-y-1">
-          <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">一年前的今天</p>
-          <h3 className="text-white text-2xl font-medium serif">湖畔的宁静午后</h3>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+        
+        {/* Emotion Dot on Photo */}
+        <div className="absolute top-6 left-6 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+          <span className="text-white text-[10px] font-bold uppercase tracking-wider">{t('Serene')}</span>
         </div>
-        <motion.button 
-          whileTap={{ scale: 0.8 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleLike?.();
-          }}
-          className={`w-10 h-10 rounded-full glass flex items-center justify-center transition-colors ${state.featuredLiked ? 'text-pink-500' : 'text-white'}`}
-        >
-          <Heart size={18} fill={state.featuredLiked ? "currentColor" : "none"} />
-        </motion.button>
-      </div>
-    </motion.div>
 
-    <div className="relative">
-      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-      <input 
-        type="text" 
-        placeholder="询问任何关于你的记忆吧..." 
-        className="w-full bg-white rounded-2xl py-4 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-cyan-100 focus:outline-none text-sm transition-all"
-      />
-      <button 
-        onClick={() => state.activeTab === 'AI助手' ? null : window.dispatchEvent(new CustomEvent('setTab', { detail: 'AI助手' }))}
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-cyan-400/10 text-cyan-500 px-3 py-1 rounded-full text-xs font-medium hover:bg-cyan-400/20 transition-colors active:scale-95"
-      >
-        ✨ AI
-      </button>
-    </div>
-
-    <div className="grid grid-cols-4 gap-4">
-      {[
-        { label: '总记忆', value: '5,867', icon: Heart, color: 'text-pink-500', bg: 'bg-pink-50' },
-        { label: '关系', value: '32', icon: Users, color: 'text-cyan-500', bg: 'bg-cyan-50' },
-        { label: '今日', value: '7', icon: Calendar, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-        { label: '积极指数', value: '88%', icon: BarChart3, color: 'text-purple-500', bg: 'bg-purple-50' },
-      ].map((stat, i) => (
-        <motion.div 
-          key={i} 
-          whileTap={{ scale: 0.95 }}
-          className="bg-white p-4 rounded-3xl shadow-sm space-y-3 cursor-pointer hover:shadow-md transition-all border border-gray-50"
-        >
-          <div className={`w-8 h-8 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
-            <stat.icon size={16} />
-          </div>
-          <div>
-            <p className="text-lg font-bold tracking-tight">{stat.value}</p>
-            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">{stat.label}</p>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-
-    <section className="space-y-4">
-      <h2 className="text-lg font-semibold">记忆时刻</h2>
-      <div className="space-y-4">
-        {state.memories.map((memory, i) => (
-          <motion.div 
-            key={memory.id} 
-            whileHover={{ y: -4 }}
-            onClick={() => alert(`查看记忆: ${memory.title}`)}
-            className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-50 cursor-pointer relative"
+        <div className="absolute top-6 right-6">
+          <motion.button 
+            whileTap={{ scale: 0.8 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLike?.();
+            }}
+            className="w-12 h-12 rounded-full sculpted-glass flex items-center justify-center text-slate-900 border border-white/40"
           >
-            <div className="relative">
-              <img src={memory.imageUrl} className="w-full h-48 object-cover" alt={memory.title} referrerPolicy="no-referrer" />
-              {/* Emotion Dot - Randomized colors */}
-              <div className={`absolute top-4 left-4 w-3 h-3 rounded-full border-2 border-white shadow-sm ${
-                i % 3 === 0 ? 'bg-red-400' : i % 3 === 1 ? 'bg-emerald-400' : 'bg-purple-400'
-              }`} />
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-lg">{memory.title}</h3>
-                <span className="text-gray-400 text-xs">{memory.date}</span>
-              </div>
-              <div className="flex gap-2">
-                {memory.tags.map(tag => (
-                  <span key={tag} className="px-3 py-1 bg-gray-50 text-gray-400 text-[10px] rounded-full">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        ))}
+            <Heart size={22} strokeWidth={1.5} fill={state.featuredLiked ? "#fbbf24" : "none"} className={state.featuredLiked ? "text-amber-500" : "text-slate-900"} />
+          </motion.button>
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 p-8">
+          <p className="text-white/80 text-[10px] font-bold uppercase tracking-[0.4em] mb-1">{t('Featured Moment')}</p>
+          <h3 className="text-white text-3xl font-black tracking-tight">{state.language === 'English' ? 'Misty Coast' : state.language === '日本語' ? '霧の海岸' : state.language === '한국어' ? '안개 낀 해안' : '薄雾海岸'}</h3>
+        </div>
+      </motion.div>
+
+      {/* Search Bar */}
+      <div className="relative group">
+        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20} strokeWidth={1.5} />
+        <input 
+          type="text" 
+          placeholder={t('Chat with Memoa...')} 
+          className="w-full sculpted-glass rounded-full py-5 pl-14 pr-20 shadow-xl focus:outline-none text-base text-slate-900 placeholder:text-slate-400 transition-all border border-white/40"
+        />
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('setTab', { detail: 'AI助手' }))}
+          className="absolute right-3 top-1/2 -translate-y-1/2 active-drop text-white px-5 py-2 rounded-full text-[10px] font-black tracking-[0.2em] uppercase transition-all active:scale-95"
+        >
+          <Sparkles size={14} className="inline mr-1" /> {state.language === 'English' ? 'AI' : 'AI'}
+        </button>
       </div>
-    </section>
-  </div>
-);
 
-import { GoogleGenAI, Modality } from "@google/genai";
+      <section className="space-y-6">
+        <div className="flex justify-between items-center px-2">
+          <h2 className="text-slate-900 text-xl font-black tracking-tight">{t('Recent Records')}</h2>
+          <ChevronRight className="text-slate-400" size={24} />
+        </div>
+        <div className="space-y-6">
+          {state.memories.filter(m => ['景迈山', '北京'].includes(m.title)).map((memory) => (
+            <motion.div 
+              key={memory.id} 
+              whileHover={{ scale: 1.02 }}
+              className="sculpted-glass rounded-[32px] overflow-hidden group cursor-pointer relative prism-refraction"
+            >
+              <div className="relative aspect-[16/9]">
+                <img src={memory.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={memory.title} referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent" />
+                
+                {/* Emotion Dot on Photo */}
+                <div className="absolute top-4 left-4">
+                  <div className={`w-3 h-3 rounded-full ${getEmotionColor(memory.emotion)} shadow-lg border border-white/40`} />
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-slate-900 font-black text-2xl tracking-tight">{memory.title}</h3>
+                  <span className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.1em]">{memory.date}</span>
+                </div>
+                <div className="flex gap-2">
+                  {memory.tags.map(tag => (
+                    <span key={tag} className="px-4 py-1.5 bg-white/40 text-slate-600 text-[10px] font-bold rounded-full border border-white/40 uppercase tracking-[0.1em]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+};
 
-export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
-  const [isVoice, setIsVoice] = React.useState(false);
-  const [isThinking, setIsThinking] = React.useState(false);
-  const [isSpeaking, setIsSpeaking] = React.useState(false);
-  const [isListening, setIsListening] = React.useState(false);
-  const [inputValue, setInputValue] = React.useState('');
-  const [colors, setColors] = React.useState(['#E0F2F1', '#B2DFDB', '#80CBC4']);
-  const [messages, setMessages] = React.useState<{ role: 'user' | 'ai'; content: string; type?: 'text' | 'image'; imageUrl?: string }[]>([
-    { role: 'ai', content: '好的，让我帮你整理今天的记忆。今天你都做了什么有意思的事情呢？' }
+// --- AI Assistant Tab ---
+
+export const AIAssistantTab: React.FC<{ 
+  state: AppState, 
+  mood?: string,
+  onAddMusic?: (app: MusicApp) => void,
+  onRemoveMusic?: (id: string) => void,
+  onAddMemory?: (memory: MemoryCard) => void
+}> = ({ state, mood = 'serene', onAddMusic, onRemoveMusic, onAddMemory }) => {
+  const t = (key: string) => translations[state.language]?.[key] || key;
+  const [isThinking, setIsThinking] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMusicOpen, setIsMusicOpen] = useState(false);
+  const [isAddMusicOpen, setIsAddMusicOpen] = useState(false);
+  const [newMusicName, setNewMusicName] = useState('');
+  const [selectedVoice, setSelectedVoice] = useState('Kore');
+  const [connectedMusicApp, setConnectedMusicApp] = useState<string | null>(null);
+  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const [isEmotionPickerOpen, setIsEmotionPickerOpen] = useState(false);
+  const [memoryDraft, setMemoryDraft] = useState<{ summary: string; emotion: string; title: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string; image?: string }[]>([
+    { role: 'ai', content: state.language === 'English' ? 'Hello, I am Memoa. What would you like to talk about today?' : state.language === '日本語' ? 'こんにちは、Memoaです。今日は何についてお話ししましょうか？' : state.language === '한국어' ? '안녕하세요, Memoa입니다. 오늘은 어떤 이야기를 나누고 싶으신가? ' : '你好，我是 Memoa。今天有什么想聊的吗？' }
   ]);
-  const [generatedMemories, setGeneratedMemories] = React.useState<{ title: string; date: string; mood: string; color: string; img: string }[]>([]);
-  const [showQuickActions, setShowQuickActions] = React.useState(true);
-  const [voiceType, setVoiceType] = React.useState('温柔');
-  const [showVoiceMenu, setShowVoiceMenu] = React.useState(false);
-  const [showSettings, setShowSettings] = React.useState(false);
 
-  const voiceOptions = ['温柔', '磁性', '清亮', '沉稳', '活泼'];
+  const aiMoodColors: Record<string, { bg: string, text: string, blob: string }> = {
+    serene: { bg: 'bg-slate-100/30', text: 'text-slate-600/60', blob: 'bg-slate-200/10' },
+    energetic: { bg: 'bg-amber-100/30', text: 'text-amber-600/60', blob: 'bg-amber-200/10' },
+    warm: { bg: 'bg-orange-100/30', text: 'text-orange-600/60', blob: 'bg-orange-200/10' },
+    mystic: { bg: 'bg-emerald-100/30', text: 'text-emerald-600/60', blob: 'bg-emerald-200/10' },
+    royal: { bg: 'bg-indigo-100/30', text: 'text-indigo-600/60', blob: 'bg-indigo-200/10' },
+    crimson: { bg: 'bg-rose-100/30', text: 'text-rose-600/60', blob: 'bg-rose-200/10' },
+    teal: { bg: 'bg-teal-100/30', text: 'text-teal-600/60', blob: 'bg-teal-200/10' },
+    slate: { bg: 'bg-slate-800/30', text: 'text-slate-400/60', blob: 'bg-slate-700/10' },
+    lavender: { bg: 'bg-violet-100/30', text: 'text-violet-600/60', blob: 'bg-violet-200/10' },
+    gold: { bg: 'bg-yellow-100/30', text: 'text-yellow-600/60', blob: 'bg-yellow-200/10' },
+    custom: { bg: 'bg-cyan-100/30', text: 'text-cyan-600/60', blob: 'bg-cyan-200/10' },
+  };
+
+  const currentAiColors = aiMoodColors[mood] || aiMoodColors.serene;
+
+  const voices = ['Kore', 'Puck', 'Charon', 'Fenrir', 'Zephyr'];
+
+  const voiceLabels: Record<string, string> = {
+    'Kore': '科尔 (Kore)',
+    'Puck': '帕克 (Puck)',
+    'Charon': '卡戎 (Charon)',
+    'Fenrir': '芬里尔 (Fenrir)',
+    'Zephyr': '西风 (Zephyr)'
+  };
+
+  const handleAddMusic = () => {
+    if (newMusicName.trim()) {
+      onAddMusic?.({
+        id: Math.random().toString(36).substr(2, 9),
+        name: newMusicName,
+        type: 'custom'
+      });
+      setNewMusicName('');
+      setIsAddMusicOpen(false);
+    }
+  };
 
   const speakResponse = async (text: string) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `用${voiceType}的语气说：${text}` }] }],
+        contents: [{ parts: [{ text: `用温柔的语气说：${text}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { 
-                voiceName: voiceType === '温柔' ? 'Kore' : voiceType === '磁性' ? 'Fenrir' : 'Zephyr' 
-              },
+              prebuiltVoiceConfig: { voiceName: selectedVoice as any },
             },
           },
         },
@@ -232,1197 +305,1376 @@ export const AIAssistantTab: React.FC<{ state: AppState }> = ({ state }) => {
 
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
-        const audioSrc = `data:audio/mp3;base64,${base64Audio}`;
-        const audio = new Audio(audioSrc);
-        audio.play();
-      } else {
-        // Fallback to Web Speech API if Gemini TTS fails or returns no data
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        window.speechSynthesis.speak(utterance);
+        // Convert base64 to ArrayBuffer
+        const binaryString = window.atob(base64Audio);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Create AudioContext
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
+        // The data is 16-bit PCM, mono, 24kHz
+        const sampleRate = 24000;
+        const numberOfChannels = 1;
+        
+        // Convert Uint8Array (16-bit PCM) to Float32Array
+        const dataView = new DataView(bytes.buffer);
+        const floatData = new Float32Array(bytes.length / 2);
+        for (let i = 0; i < floatData.length; i++) {
+          // 16-bit signed PCM is little-endian
+          const s = dataView.getInt16(i * 2, true);
+          floatData[i] = s / 32768;
+        }
+        
+        const audioBuffer = audioContext.createBuffer(numberOfChannels, floatData.length, sampleRate);
+        audioBuffer.getChannelData(0).set(floatData);
+        
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        
+        // Handle potential auto-play restrictions
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        source.start();
       }
     } catch (error) {
       console.error("TTS Error:", error);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'zh-CN';
-      window.speechSynthesis.speak(utterance);
     }
   };
 
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("您的浏览器不支持语音识别。");
+  const handleAddToMemoryBank = async () => {
+    if (!memoryDraft) {
+      handleSendMessage(state.language === 'English' ? "Please generate a summary or add an emotion tag first so I can record the memory for you." : "请先生成记忆摘要或添加情绪标签，我才能帮你记录记忆哦。");
       return;
     }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'zh-CN';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInputValue(transcript);
-      handleSendMessage(transcript);
-    };
-
-    recognition.start();
+    
+    if (onAddMemory) {
+      const newMemory: MemoryCard = {
+        id: Date.now().toString(),
+        title: memoryDraft.title,
+        imageUrl: `https://picsum.photos/seed/${memoryDraft.title}/800/800`,
+        photoCount: 1,
+        date: new Date().toLocaleDateString(state.language === 'English' ? 'en-US' : state.language === '日本語' ? 'ja-JP' : state.language === '한국어' ? 'ko-KR' : 'zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
+        emotion: 90, // Default high resonance
+        tags: [memoryDraft.emotion, state.language === 'English' ? 'AI Generated' : 'AI生成']
+      };
+      onAddMemory(newMemory);
+    }
+    
+    const content = state.language === 'English' ? `Okay, I've stored this memory (${memoryDraft.title}) in your memory bank. You can view it anytime in the "Memory" tab.` : `好的，我已经将这段记忆（${memoryDraft.title}）存入你的记忆库了。你可以随时在“记忆”标签页查看。`;
+    setMessages(prev => [...prev, { role: 'ai', content }]);
+    speakResponse(state.language === 'English' ? "Okay, I've stored this memory in your memory bank." : "好的，我已经将这段记忆存入你的记忆库了。");
+    setMemoryDraft(null);
   };
 
-  const handleSendMessage = async (text?: string) => {
+  const handleGenerateMemorySummary = async () => {
+    if (messages.length < 2) {
+      handleSendMessage(state.language === 'English' ? "We haven't talked much yet. Let's talk a bit more before I summarize for you." : "我们还没聊多少呢，等再多聊几句我再帮你总结吧。");
+      return;
+    }
+    setIsThinking(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const chatHistory = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+      const prompt = state.language === 'English' 
+        ? `Based on our conversation:\n${chatHistory}\nPlease extract the essence of this conversation and generate a short memory record. Format:\n[Title]: (A poetic title)\n[Description]: (Describe the core content of this memory in a gentle tone)`
+        : `基于我们刚才的对话：\n${chatHistory}\n请帮我提炼出这段对话的精华，生成一个简短的记忆记录。格式如下：\n【标题】：（起一个有诗意的标题）\n【描述】：（用温柔的语气描述这段记忆的核心内容）`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+      const aiText = response.text || (state.language === 'English' ? "[Title]: Warm Conversation\n[Description]: A beautiful exchange." : "【标题】：温馨对话\n【描述】：一段美好的交流。");
+      
+      // Parse title and description
+      const titleMatch = state.language === 'English' ? aiText.match(/\[Title\]: (.*?)(?:\n|$)/) : aiText.match(/【标题】：(.*?)(?:\n|$)/);
+      const descMatch = state.language === 'English' ? aiText.match(/\[Description\]: (.*?)(?:\n|$)/) : aiText.match(/【描述】：(.*?)(?:\n|$)/);
+      const title = titleMatch ? titleMatch[1] : (state.language === 'English' ? "Warm Conversation" : "温馨对话");
+      const desc = descMatch ? descMatch[1] : aiText;
+
+      setMemoryDraft(prev => ({
+        summary: desc,
+        title: title,
+        emotion: prev?.emotion || t('Serene')
+      }));
+
+      setIsThinking(false);
+      const aiMsg = state.language === 'English' 
+        ? `I've organized this memory for you:\n\n${aiText}\n\nClick the "Add Emotion Tag" button below to choose a unique mood for this memory.`
+        : `我已经为你整理好了这段记忆：\n\n${aiText}\n\n点击下方的“添加情绪标签”按钮，为这段记忆选择一个专属的心情吧。`;
+      setMessages(prev => [...prev, { role: 'ai', content: aiMsg }]);
+      speakResponse(state.language === 'English' ? "I've organized this memory for you. You can add an emotion tag below." : "我已经为你整理好了这段记忆。你可以点击下方按钮添加情绪标签。");
+    } catch (error) {
+      console.error("Summary Error:", error);
+      setIsThinking(false);
+    }
+  };
+
+  const handleAddEmotionTag = () => {
+    setIsEmotionPickerOpen(true);
+  };
+
+  const selectEmotion = (emotion: string) => {
+    setMemoryDraft(prev => ({
+      summary: prev?.summary || (state.language === 'English' ? "A beautiful conversation." : "一段美好的对话。"),
+      title: prev?.title || (state.language === 'English' ? "Today's Conversation" : "今日对话"),
+      emotion: emotion
+    }));
+    setIsEmotionPickerOpen(false);
+    setMessages(prev => [...prev, { role: 'ai', content: state.language === 'English' ? `Okay, I've tagged this memory as "${emotion}".` : `好的，我为这段记忆打上了“${emotion}”的标签。` }]);
+    speakResponse(state.language === 'English' ? `Okay, I've tagged this memory as ${emotion}.` : `好的，我为这段记忆打上了${emotion}的标签。`);
+  };
+
+  const handleSendMessage = async (text?: string, image?: string) => {
     const messageToSend = text || inputValue;
-    if (!messageToSend.trim()) return;
+    if (!messageToSend.trim() && !image) return;
     
-    setMessages(prev => [...prev, { role: 'user', content: messageToSend }]);
+    setMessages(prev => [...prev, { role: 'user', content: messageToSend, image }]);
     setInputValue('');
     setIsThinking(true);
-    setShowQuickActions(false);
     
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `你是一个温柔的数字记忆助手。用户说：${messageToSend}。请根据这段对话，如果用户描述了一段具体的经历，请以JSON格式返回一个可能的记忆卡片信息（包含title, mood, color），否则只返回文字回复。JSON格式示例：{"memory": {"title": "咖啡馆闲坐", "mood": "惬意", "color": "bg-yellow-400"}, "reply": "听起来很棒..."}`,
+        contents: `You are a gentle digital memory assistant. User says: ${messageToSend}. Please reply concisely in ${state.language}.`,
         config: {
-          systemInstruction: "你是一个名为'椰子'的数字记忆助手。你的语气应该温柔、体贴。你会帮助用户记录、整理和理解他们的记忆。保持简洁，通常在2-3句话以内。",
+          systemInstruction: `You are a digital memory assistant named 'Memoa'. Your tone should be gentle and considerate. Keep it concise, usually within 2-3 sentences. Reply in ${state.language}.`,
         }
       });
 
       const aiText = response.text || "";
-      let finalReply = aiText;
-      
-      try {
-        const jsonMatch = aiText.match(/\{.*\}/s);
-        if (jsonMatch) {
-          const data = JSON.parse(jsonMatch[0]);
-          if (data.memory) {
-            setGeneratedMemories(prev => [
-              { 
-                ...data.memory, 
-                date: new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
-                img: `https://picsum.photos/seed/${Math.random()}/400/400`
-              },
-              ...prev 
-            ]);
-          }
-          finalReply = data.reply || aiText.replace(/\{.*\}/s, '').trim();
-        }
-      } catch (e) {
-        // Fallback
-      }
-      
       setIsThinking(false);
       setIsSpeaking(true);
-      setMessages(prev => [...prev, { role: 'ai', content: finalReply }]);
-      speakResponse(finalReply);
-      
-      setTimeout(() => setIsSpeaking(false), Math.min(finalReply.length * 150, 4000));
+      setMessages(prev => [...prev, { role: 'ai', content: aiText }]);
+      speakResponse(aiText);
+      setTimeout(() => setIsSpeaking(false), 4000);
     } catch (error) {
       console.error("AI Error:", error);
       setIsThinking(false);
-      setMessages(prev => [...prev, { role: 'ai', content: "抱歉，我现在连接有点不稳定。但我一直在这里陪着你。" }]);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setMessages(prev => [...prev, { role: 'user', content: '上传了一张照片', type: 'image', imageUrl }]);
-      setIsThinking(true);
-      setTimeout(() => {
-        setIsThinking(false);
-        setIsSpeaking(true);
-        const response = '这张照片色彩很丰富。我检测到了“快乐”和“平静”的情绪。你想为它添加更多细节吗？';
-        setMessages(prev => [...prev, { role: 'ai', content: response }]);
-        setTimeout(() => setIsSpeaking(false), 3000);
-      }, 1500);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        handleSendMessage("看看这段记忆...", event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   return (
-    <div className="relative h-screen bg-[#FDFEFE] text-gray-800 overflow-hidden flex flex-col">
-      {/* Dreamy Background Atmosphere */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.2, 1],
-            x: [0, 50, 0],
-            y: [0, -30, 0]
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-cyan-100/30 rounded-full blur-[120px]" 
-        />
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.3, 1],
-            x: [0, -40, 0],
-            y: [0, 60, 0]
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-emerald-50/40 rounded-full blur-[150px]" 
-        />
-      </div>
-
-      {/* Top Navigation */}
-      <nav className="relative z-30 pt-10 px-8 flex justify-between items-end">
+    <div className="relative flex-1 flex flex-col pt-16 px-8 space-y-8">
+      <header className="flex justify-between items-center flex-shrink-0">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">AI助手</h1>
-          <p className="text-gray-400 text-xs font-medium">记录、整理与理解你的记忆</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('Prism AI')}</h1>
+          <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">{t('Ethereal Resonance')}</p>
         </div>
-        <div className="flex gap-3 relative">
-          <div className="relative">
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowVoiceMenu(!showVoiceMenu)}
-              className="px-4 py-2 bg-white/60 backdrop-blur-md border border-gray-100 rounded-full text-[11px] font-bold text-cyan-600 shadow-sm flex items-center gap-2"
-            >
-              <Mic size={14} />
-              音色: {voiceType}
-            </motion.button>
-            
-            <AnimatePresence>
-              {showVoiceMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute top-full right-0 mt-2 w-24 bg-white/90 backdrop-blur-xl border border-white shadow-xl rounded-2xl p-1.5 z-[60]"
-                >
-                  {voiceOptions.map((opt) => (
-                    <button 
-                      key={opt}
-                      onClick={() => {
-                        setVoiceType(opt);
-                        setShowVoiceMenu(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-bold transition-colors ${voiceType === opt ? 'bg-cyan-50 text-cyan-500' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          
+        <div className="flex gap-3">
           <motion.button 
-            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setShowSettings(true)}
-            className="p-2.5 bg-white/60 backdrop-blur-md border border-gray-100 rounded-full text-cyan-500 shadow-sm"
+            onClick={() => setIsMusicOpen(true)}
+            className={`w-10 h-10 sculpted-glass rounded-full flex items-center justify-center border border-white/40 ${isPlayingMusic ? 'text-emerald-500' : 'text-slate-600'}`}
           >
-            <Settings size={18} />
+            <Volume2 size={18} strokeWidth={1.5} className={isPlayingMusic ? 'animate-pulse' : ''} />
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsSettingsOpen(true)}
+            className="w-10 h-10 sculpted-glass rounded-full flex items-center justify-center text-slate-600 border border-white/40"
+          >
+            <Settings size={18} strokeWidth={1.5} />
           </motion.button>
         </div>
-      </nav>
+      </header>
 
-      {/* Settings Modal (AI Assistant) */}
-      <AnimatePresence>
-        {showSettings && (
+      {/* Prism AI Soul */}
+      <div className="flex-1 flex flex-col items-center justify-center relative overflow-y-auto no-scrollbar py-2">
+        <div className="relative w-64 h-64 flex items-center justify-center flex-shrink-0">
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-            onClick={() => setShowSettings(false)}
+            animate={{ 
+              scale: isListening || isSpeaking ? [1, 1.1, 0.95, 1.05, 1] : 1,
+              rotate: 360,
+              borderRadius: isListening || isSpeaking ? 
+                ["50%", "40% 60% 70% 30% / 40% 50% 60% 50%", "60% 40% 30% 70% / 60% 30% 70% 40%", "50%"] : 
+                "50%"
+            }}
+            transition={{ 
+              scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+              rotate: { duration: 25, repeat: Infinity, ease: "linear" },
+              borderRadius: { duration: 5, repeat: Infinity, ease: "easeInOut" }
+            }}
+            className={`w-48 h-48 prism-sphere flex items-center justify-center relative overflow-visible breathe-soft cursor-pointer transition-colors duration-500 ${isListening || isSpeaking ? currentAiColors.bg : 'bg-white/5'}`}
+            onClick={() => setIsListening(!isListening)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[40px] p-8 w-full max-w-xs space-y-6 shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-bold text-gray-900">助手设置</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-600">主动对话</span>
-                  <div className="w-10 h-5 bg-cyan-400 rounded-full relative">
-                    <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-600">记忆同步</span>
-                  <div className="w-10 h-5 bg-cyan-400 rounded-full relative">
-                    <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="w-full py-3 bg-gray-900 text-white rounded-2xl font-bold"
-              >
-                完成
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Content Area */}
-      <div className="flex-1 relative flex flex-col overflow-hidden mt-4">
-        {/* Scrollable Chat Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 no-scrollbar space-y-8">
-          {/* Quick Action Cards */}
-          {showQuickActions && (
-            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-              {[
-                { label: '记录今天发生的事情', icon: Calendar, color: 'bg-emerald-50 text-emerald-500' },
-                { label: '整理最近的回忆', icon: Brain, color: 'bg-cyan-50 text-cyan-500' },
-              ].map((action, i) => (
-                <motion.button 
-                  key={i}
-                  whileHover={{ y: -4, shadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleSendMessage(action.label)}
-                  className="bg-white border border-gray-50 p-5 rounded-[32px] text-left space-y-4 shadow-sm transition-all"
-                >
-                  <div className={`w-12 h-12 rounded-2xl ${action.color} flex items-center justify-center shadow-inner`}>
-                    <action.icon size={24} />
-                  </div>
-                  <p className="text-[14px] text-gray-800 font-bold leading-snug">{action.label}</p>
-                </motion.button>
-              ))}
-            </div>
-          )}
-
-          {/* Central Visual - Soft Liquid Glass Visualizer */}
-          <div className="relative w-full max-w-sm aspect-square flex items-center justify-center mx-auto pointer-events-none">
-            {/* Particles */}
-            {[...Array(12)].map((_, i) => (
-              <motion.div
-                key={i}
-                animate={{
-                  x: [0, (Math.random() - 0.5) * 200, 0],
-                  y: [0, (Math.random() - 0.5) * 200, 0],
-                  scale: [0, 1, 0],
-                  opacity: [0, 0.3, 0]
-                }}
-                transition={{
-                  duration: 3 + Math.random() * 4,
-                  repeat: Infinity,
-                  delay: Math.random() * 5,
-                  ease: "easeInOut"
-                }}
-                className="absolute w-2 h-2 rounded-full bg-cyan-300/40 blur-[2px]"
-              />
-            ))}
-
-            {/* Soft Ripple Effect */}
-            <AnimatePresence>
-              {(inputValue || isThinking || isSpeaking) && (
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ 
-                    scale: isThinking ? [1, 1.4, 1] : [1, 2, 1], 
-                    opacity: isThinking ? [0.1, 0.2, 0.1] : [0.05, 0.15, 0.05] 
-                  }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute w-72 h-72 rounded-full bg-cyan-100/50 blur-[60px]"
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Organic Liquid Particle Body */}
+            {/* Liquid Glass Texture */}
+            <div className={`absolute inset-0 backdrop-blur-2xl transition-colors duration-500 rounded-full ${isListening || isSpeaking ? currentAiColors.blob : 'bg-white/5'}`} />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_70%)] rounded-full" />
+            
             <motion.div
               animate={{ 
-                scale: isThinking ? 0.8 : isSpeaking ? 1.25 : 1,
-                opacity: isThinking ? 0.8 : 0.5,
-                backgroundColor: isThinking ? '#004D40' : isSpeaking ? '#4DB6AC' : '#B2DFDB',
-                rotate: [0, 360]
+                opacity: isListening ? [0.4, 1, 0.4] : 1,
+                scale: isListening ? [1, 1.2, 1] : 1
               }}
-              transition={{ 
-                scale: { duration: 2, ease: "easeInOut" },
-                rotate: { duration: 30, repeat: Infinity, ease: "linear" }
-              }}
-              className="absolute w-64 h-64 rounded-full blur-[110px]"
-              style={{ background: `radial-gradient(circle, ${colors[0]}AA 0%, transparent 75%)` }}
-            />
+              transition={{ duration: 2, repeat: Infinity }}
+              className="relative z-10"
+            >
+              <Mic size={32} strokeWidth={1.5} className={isListening || isSpeaking ? currentAiColors.text : 'text-slate-700/60'} />
+            </motion.div>
+          </motion.div>
+        </div>
 
-            {/* Core Organic Liquid Blob - Water Drop Shape */}
-            <motion.div
-              animate={{
-                borderRadius: isThinking 
-                  ? ["45% 55% 48% 52% / 52% 48% 55% 45%", "52% 48% 55% 45% / 45% 55% 48% 52%"]
-                  : isSpeaking
-                  ? ["35% 65% 70% 30% / 40% 40% 60% 60%", "65% 35% 30% 70% / 60% 60% 40% 40%", "40% 60% 40% 60% / 70% 30% 70% 30%"]
-                  : ["48% 52% 55% 45% / 50% 50% 50% 50%", "52% 48% 45% 55% / 50% 50% 50% 50%", "45% 55% 50% 50% / 55% 45% 50% 50%"],
-                scale: isThinking ? 0.85 : isSpeaking ? 1.2 : 1,
-                rotate: isThinking ? [0, 360] : isSpeaking ? [0, 180, 0] : [0, 90, 0],
-                y: isSpeaking ? [0, -10, 0] : 0
-              }}
-              transition={{ 
-                duration: isThinking ? 5 : isSpeaking ? 4 : 15, 
-                repeat: Infinity, 
-                ease: "easeInOut" 
-              }}
-              className="relative w-48 h-48 backdrop-blur-3xl border border-white/70 shadow-[inset_0_0_80px_rgba(255,255,255,0.5)] overflow-hidden"
-              style={{ 
-                background: `linear-gradient(135deg, ${colors[0]}77 0%, ${colors[1]}55 50%, ${colors[2]}77 100%)`,
-                boxShadow: isSpeaking ? '0 0 100px rgba(79, 209, 197, 0.4)' : '0 25px 60px rgba(0,0,0,0.03)'
-              }}
-            />
-          </div>
+        {/* Action Buttons */}
+        <div className="flex gap-3 mt-4">
+          {[
+            { label: t('Add to Memory Bank'), icon: Plus, action: handleAddToMemoryBank },
+            { label: t('Generate Summary'), icon: Brain, action: handleGenerateMemorySummary },
+            { label: t('Add Emotion Tag'), icon: Heart, action: handleAddEmotionTag },
+          ].map((btn, i) => (
+            <motion.button
+              key={i}
+              whileHover={{ y: -2, scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={btn.action}
+              disabled={isThinking}
+              className={`px-4 py-2.5 sculpted-glass rounded-2xl text-[10px] font-bold border border-white/40 flex items-center gap-2 shadow-sm transition-opacity ${isThinking ? 'opacity-50 cursor-not-allowed' : 'text-slate-600'}`}
+            >
+              <btn.icon size={14} strokeWidth={2} />
+              {btn.label}
+            </motion.button>
+          ))}
+        </div>
 
-          {/* Chat Messages */}
-          <div className="max-w-md mx-auto space-y-8">
+        {/* Chat Bubbles */}
+        <div className="w-full mt-12 space-y-6">
+          <AnimatePresence mode="popLayout">
             {messages.map((msg, idx) => (
               <motion.div 
                 key={idx}
-                initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`max-w-[85%] rounded-[32px] px-7 py-5 text-[15px] leading-relaxed shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-cyan-500 text-white rounded-tr-none shadow-cyan-200/50' 
-                    : 'bg-white border border-gray-50 text-gray-700 rounded-tl-none'
-                }`}>
-                  {msg.type === 'image' ? (
-                    <div className="space-y-3">
-                      <img src={msg.imageUrl} className="rounded-2xl w-full max-h-56 object-cover shadow-sm" alt="uploaded" />
-                      <p className="text-[12px] opacity-70 italic font-medium">{msg.content}</p>
-                    </div>
-                  ) : (
-                    <p className="font-medium">{msg.content}</p>
+                <div className={`max-w-[80%] sculpted-glass rounded-[28px] px-8 py-6 text-sm font-medium leading-relaxed prism-refraction ${msg.role === 'user' ? 'active-drop text-white rounded-tr-none' : 'text-slate-900 rounded-tl-none'}`}>
+                  {msg.image && (
+                    <img src={msg.image} className="w-full rounded-xl mb-4 shadow-lg" alt="upload" referrerPolicy="no-referrer" />
                   )}
+                  <span className={msg.role === 'ai' ? 'text-etched' : ''}>{msg.content}</span>
                 </div>
               </motion.div>
             ))}
-
-                {/* AI Action Chips */}
-                {messages[messages.length - 1]?.role === 'ai' && !isThinking && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-wrap gap-2.5 pt-2"
-                  >
-                    {[
-                      { label: '生成记忆摘要', icon: Calendar, action: () => alert('正在生成摘要...') },
-                      { label: '添加情绪标签', icon: Heart, action: () => alert('已自动识别情绪：积极') },
-                      { label: '归档到记忆库', icon: Brain, action: () => alert('已成功归档') },
-                    ].map((chip, i) => (
-                      <motion.button 
-                        key={i}
-                        whileHover={{ scale: 1.05, backgroundColor: '#C2DFCD' }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={chip.action}
-                        className="flex items-center gap-2.5 px-5 py-2.5 bg-[#D1E7D9] border border-[#B8D8C5] rounded-full text-[12px] text-[#4A7A58] font-bold shadow-sm transition-colors"
-                      >
-                        <chip.icon size={16} />
-                        {chip.label}
-                      </motion.button>
-                    ))}
-                  </motion.div>
-                )}
-
-            {/* Generated Memories Preview */}
-            {generatedMemories.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="pt-10 space-y-5"
-              >
-                <div className="flex items-center gap-3 text-gray-400 px-2">
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center">
-                    <Brain size={18} />
-                  </div>
-                  <span className="text-[12px] font-bold tracking-[0.2em] uppercase">为你生成了以下记忆</span>
-                </div>
-                <div className="space-y-4">
-                  {generatedMemories.map((mem, i) => (
-                    <motion.div 
-                      key={i} 
-                      whileHover={{ scale: 1.02, y: -2 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="bg-white border border-gray-50 rounded-[40px] p-5 flex gap-5 items-center shadow-sm cursor-pointer hover:shadow-md transition-all"
-                    >
-                      <img src={mem.img} className="w-20 h-20 rounded-[28px] object-cover shadow-sm" alt={mem.title} />
-                      <div className="flex-1 space-y-1">
-                        <h4 className="text-[16px] font-bold text-gray-900">{mem.title}</h4>
-                        <p className="text-[12px] text-gray-400 font-medium">{mem.date}</p>
-                      </div>
-                      <div className="flex items-center gap-2.5 bg-gray-50/80 px-4 py-2 rounded-full border border-gray-100">
-                        <div className={`w-2.5 h-2.5 rounded-full ${mem.color} shadow-sm`} />
-                        <span className="text-[12px] text-gray-600 font-bold">{mem.mood}</span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </div>
+          </AnimatePresence>
         </div>
+      </div>
 
-        {/* Bottom Dialogue Bar */}
-        <div className="relative z-20 px-8 pb-32 pt-6 bg-gradient-to-t from-white via-white/90 to-transparent">
-          <div className="max-w-md mx-auto relative flex items-center gap-4">
-            <div className="flex-1 relative group">
-              <input 
-                type="text" 
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="和椰子聊聊你的记忆..." 
-                className="w-full bg-white/80 backdrop-blur-2xl border border-white rounded-[40px] py-6 pl-8 pr-16 shadow-2xl focus:ring-4 focus:ring-cyan-100 focus:outline-none text-[15px] font-medium transition-all placeholder:text-gray-300"
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <label htmlFor="chat-image-upload" className="p-2 text-gray-300 hover:text-cyan-400 cursor-pointer transition-colors">
-                  <Plus size={20} />
-                  <input 
-                    type="file" 
-                    id="chat-image-upload" 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-                <button 
-                  onClick={() => handleSendMessage()}
-                  disabled={!inputValue.trim() || isThinking}
-                  className="w-11 h-11 bg-cyan-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-cyan-600 transition-all active:scale-90 disabled:opacity-50 disabled:scale-100"
-                >
-                  <Sparkles size={20} />
-                </button>
-              </div>
-            </div>
-            
-            <motion.button 
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={isListening ? () => {} : startListening}
-              className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all ${
-                isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-cyan-500'
-              }`}
+      {/* Input Bar */}
+      <div className="pb-4 pt-2 flex-shrink-0">
+        <div className="relative flex items-center gap-3">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-12 h-12 sculpted-glass rounded-full flex items-center justify-center text-slate-500 border border-white/40 hover:text-slate-700 transition-colors"
             >
-              <Mic size={24} />
-            </motion.button>
+              <ImageIcon size={20} />
+            </button>
+            <button 
+              onClick={() => setIsListening(!isListening)}
+              className={`w-12 h-12 sculpted-glass rounded-full flex items-center justify-center border border-white/40 transition-all ${isListening ? 'active-drop text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Mic size={20} />
+            </button>
+          </div>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleImageUpload} 
+          />
+          <div className="relative flex-1">
+            <input 
+              type="text" 
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder={t('Chat with Memoa...')} 
+              className="w-full sculpted-glass rounded-full py-4 px-6 text-slate-900 placeholder:text-slate-400 focus:outline-none text-sm font-medium border border-white/40"
+            />
+            <button 
+              onClick={() => handleSendMessage()}
+              disabled={isThinking}
+              className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors ${isThinking ? 'text-slate-300' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <Sparkles size={20} strokeWidth={1.5} />
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title="AI 设置">
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">选择语音</p>
+            <div className="grid grid-cols-2 gap-3">
+              {voices.map(voice => (
+                <button
+                  key={voice}
+                  onClick={() => setSelectedVoice(voice)}
+                  className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all border ${selectedVoice === voice ? 'active-drop text-white border-transparent' : 'bg-white/40 text-slate-600 border-white/40'}`}
+                >
+                  <Volume2 size={14} className="inline mr-2" /> {voiceLabels[voice] || voice}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="pt-4 border-t border-slate-100">
+            <button onClick={() => setIsSettingsOpen(false)} className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-sm">{t('Save All Changes')}</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Music Modal */}
+      <Modal isOpen={isMusicOpen} onClose={() => setIsMusicOpen(false)} title={t('Background Music')}>
+        <div className="space-y-6">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            {t('Connect your favorite music app...')}
+          </p>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto no-scrollbar">
+            {state.musicApps.map(app => (
+              <div key={app.id} className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setConnectedMusicApp(app.name);
+                    setIsPlayingMusic(true);
+                    setIsMusicOpen(false);
+                  }}
+                  className={`flex-1 p-4 rounded-2xl flex items-center justify-between border transition-all ${connectedMusicApp === app.name ? 'border-emerald-400 bg-emerald-50/50' : 'border-white/40 bg-white/40'}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center text-slate-500">
+                      {app.type === 'spotify' ? 'S' : app.type === 'apple' ? 'A' : 'M'}
+                    </div>
+                    <span className="text-sm font-bold text-slate-700">{app.name}</span>
+                  </div>
+                  {connectedMusicApp === app.name ? (
+                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{t('Connected')}</span>
+                  ) : (
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('Connect')}</span>
+                  )}
+                </button>
+                <button 
+                  onClick={() => onRemoveMusic?.(app.id)}
+                  className="p-4 rounded-2xl border border-white/40 bg-white/40 text-rose-400 hover:text-rose-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          
+          <div className="pt-4 border-t border-slate-100">
+            {isAddMusicOpen ? (
+              <div className="space-y-3">
+                <input 
+                  type="text" 
+                  placeholder={t('App Name...')} 
+                  value={newMusicName}
+                  onChange={(e) => setNewMusicName(e.target.value)}
+                  className="w-full bg-white/40 border border-white/40 rounded-xl px-4 py-3 text-sm focus:outline-none"
+                />
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleAddMusic}
+                    className="flex-1 active-drop text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    {t('Add')}
+                  </button>
+                  <button 
+                    onClick={() => setIsAddMusicOpen(false)}
+                    className="px-6 sculpted-glass text-slate-500 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    {t('Cancel')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsAddMusicOpen(true)}
+                className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <Plus size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest">{t('Add Music App')}</span>
+              </button>
+            )}
+          </div>
+
+          {connectedMusicApp && (
+            <div className="pt-6 border-t border-slate-100 space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full bg-emerald-500 ${isPlayingMusic ? 'animate-pulse' : ''}`} />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{t('Playing via')} {connectedMusicApp}</span>
+                </div>
+                <button 
+                  onClick={() => setIsPlayingMusic(!isPlayingMusic)}
+                  className="text-slate-900 font-black text-[10px] uppercase tracking-widest hover:text-emerald-500 transition-colors"
+                >
+                  {isPlayingMusic ? t('Pause') : t('Play')}
+                </button>
+              </div>
+              
+              {/* Simulated Progress Bar */}
+              <div className="space-y-2">
+                <div className="relative h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div 
+                    className="absolute top-0 left-0 h-full bg-emerald-400"
+                    animate={{ width: isPlayingMusic ? '100%' : '30%' }}
+                    transition={{ duration: isPlayingMusic ? 180 : 0.5, ease: "linear" }}
+                  />
+                </div>
+                <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span>{isPlayingMusic ? '1:24' : '0:45'}</span>
+                  <span>3:45</span>
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-6 pt-2">
+                <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <Clock size={16} />
+                </button>
+                <button 
+                  onClick={() => setIsPlayingMusic(!isPlayingMusic)}
+                  className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg active:scale-95 transition-all"
+                >
+                  {isPlayingMusic ? <div className="flex gap-1"><div className="w-1 h-3 bg-white rounded-full"/><div className="w-1 h-3 bg-white rounded-full"/></div> : <Plus className="rotate-45" size={20} />}
+                </button>
+                <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <Heart size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Emotion Picker Modal */}
+      <Modal isOpen={isEmotionPickerOpen} onClose={() => setIsEmotionPickerOpen(false)} title={t('Choose Emotion Tag')}>
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { name: t('Joy'), color: 'bg-emerald-400' },
+            { name: t('Serene'), color: 'bg-slate-400' },
+            { name: t('Sadness'), color: 'bg-rose-400' },
+            { name: t('Nostalgia'), color: 'bg-amber-400' },
+            { name: state.language === 'English' ? 'Expectation' : '期待', color: 'bg-indigo-400' },
+            { name: state.language === 'English' ? 'Shock' : '震撼', color: 'bg-purple-400' },
+          ].map((emotion) => (
+            <motion.button
+              key={emotion.name}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => selectEmotion(emotion.name)}
+              className="p-6 rounded-[24px] sculpted-glass border border-white/40 flex flex-col items-center gap-3 transition-all hover:bg-white/60"
+            >
+              <div className={`w-4 h-4 rounded-full ${emotion.color} shadow-lg`} />
+              <span className="text-xs font-bold text-slate-700">{emotion.name}</span>
+            </motion.button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 };
 
-export const MemoryTab: React.FC<{ state: AppState }> = ({ state }) => {
-  const [isSearching, setIsSearching] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [isFiltering, setIsFiltering] = React.useState(false);
-  const [activeFilter, setActiveFilter] = React.useState('地点');
-  const [localMemories, setLocalMemories] = React.useState([
-    { title: '山林', count: 67, img: 'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=400' },
-    { title: '上海', count: 623, img: 'https://picsum.photos/seed/shanghai/200/200' },
-    { title: '咖啡馆', count: 130, img: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=400' },
-    { title: '普洱', count: 320, img: 'https://picsum.photos/seed/tea/200/200' },
-    { title: '学校', count: 496, img: 'https://picsum.photos/seed/school/200/200' },
-  ]);
+// --- Memory Tab ---
 
-  const handleAddMemory = (e: React.ChangeEvent<HTMLInputElement>) => {
+export const MemoryTab: React.FC<{ state: AppState; onAddMemory?: (memory: MemoryCard) => void }> = ({ state, onAddMemory }) => {
+  const t = (key: string) => translations[state.language]?.[key] || key;
+  const [activePhoto, setActivePhoto] = useState<string | null>(null);
+  const [viewerMemory, setViewerMemory] = useState<MemoryCard | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [isAddMemoryOpen, setIsAddMemoryOpen] = useState(false);
+  const [newMemoryTitle, setNewMemoryTitle] = useState('');
+  const [newMemoryImage, setNewMemoryImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      const newTitle = prompt('请输入记忆分类名称:', '新记忆') || '新记忆';
-      setLocalMemories(prev => [
-        ...prev,
-        { title: newTitle, count: 1, img: url }
-      ]);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setNewMemoryImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const filteredMemories = localMemories.filter(m => 
-    m.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleAddMemory = () => {
+    if (!newMemoryTitle || !newMemoryImage || !onAddMemory) return;
+    const newMemory: MemoryCard = {
+      id: Date.now().toString(),
+      title: newMemoryTitle,
+      imageUrl: newMemoryImage,
+      photoCount: 1,
+      date: new Date().toLocaleDateString(state.language === 'English' ? 'en-US' : state.language === '日本語' ? 'ja-JP' : state.language === '한국어' ? 'ko-KR' : 'zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
+      emotion: 85,
+      tags: [state.language === 'English' ? 'New' : state.language === '日本語' ? '新しい' : state.language === '한국어' ? '새로운' : '新记忆']
+    };
+    onAddMemory(newMemory);
+    setIsAddMemoryOpen(false);
+    setNewMemoryTitle('');
+    setNewMemoryImage(null);
+  };
+
+  const filteredMemories = state.memories
+    .filter(m => !['景迈山', '北京'].includes(m.title))
+    .filter(memory => 
+      memory.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      memory.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+  const getEmotionColor = (score: number) => {
+    if (score > 80) return 'bg-emerald-400';
+    if (score > 60) return 'bg-amber-400';
+    return 'bg-rose-400';
+  };
 
   return (
-    <div className="p-6 pb-32 space-y-6 bg-[#F8F9FA] min-h-screen relative">
+    <div className="p-8 space-y-10 flex-1">
       <header className="flex justify-between items-center">
         <div className="space-y-1">
-          <h1 className="text-4xl font-medium text-gray-900 serif">记忆库</h1>
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">5,867 Memories Collected</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t('Memory Bank')}</h1>
+          <p className="text-slate-400 text-[10px] font-bold tracking-[0.2em] uppercase">{t('Digital Eternity')}</p>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => {
-              setIsSearching(!isSearching);
-              setIsFiltering(false);
-            }}
-            className={`p-3 rounded-2xl transition-all ${isSearching ? 'bg-cyan-500 text-white shadow-xl' : 'bg-white text-cyan-500 shadow-sm border border-gray-50'}`}
-          >
-            <Search size={22} />
-          </button>
-          <button 
-            onClick={() => {
-              setIsFiltering(!isFiltering);
-              setIsSearching(false);
-            }}
-            className={`p-3 rounded-2xl transition-all ${isFiltering ? 'bg-cyan-500 text-white shadow-xl' : 'bg-white text-cyan-500 shadow-sm border border-gray-50'}`}
-          >
-            <SlidersHorizontal size={22} />
-          </button>
-        </div>
-      </header>
-
-      {/* Search Bar */}
-      <AnimatePresence>
-        {isSearching && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0, y: -10 }}
-            animate={{ height: 'auto', opacity: 1, y: 0 }}
-            exit={{ height: 0, opacity: 0, y: -10 }}
-            className="overflow-hidden"
-          >
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input 
-                autoFocus
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索记忆分类..."
-                className="w-full bg-white border border-gray-100 rounded-2xl py-3 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-cyan-100 focus:outline-none text-sm"
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Filter Overlay */}
-      <AnimatePresence>
-        {isFiltering && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="bg-white p-5 rounded-3xl shadow-xl border border-gray-50 space-y-4 z-30 relative"
-          >
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">筛选标准</h3>
-            <div className="flex flex-wrap gap-2">
-              {['按热度', '按时间', '按情绪', '仅看照片', '仅看文字', '最近添加'].map(f => (
-                <button key={f} className="px-4 py-2 bg-gray-50 hover:bg-cyan-400 hover:text-white text-[11px] text-gray-500 rounded-full transition-all font-medium">
-                  {f}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Filter Tabs */}
-      <div className="bg-gray-200/50 p-1 rounded-2xl flex gap-1">
-        {['时间', '关系', '地点'].map((filter) => (
-          <button 
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`flex-1 py-2.5 text-xs font-medium rounded-xl transition-all ${activeFilter === filter ? 'bg-white shadow-sm text-cyan-500' : 'text-gray-400'}`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
-
-      {/* Emotion Spectrum Card */}
-      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-50 space-y-8">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">情绪色谱</h2>
-          <span className="text-xs font-bold text-cyan-500 bg-cyan-50 px-3 py-1 rounded-full">实时同步</span>
-        </div>
-        
-        <div className="space-y-6">
-          {/* Refined Gradient Spectrum */}
-          <div className="relative h-4 w-full bg-gradient-to-r from-[#FF3B30] via-[#FFCC00] via-[#4CD964] via-[#007AFF] to-[#AF52DE] rounded-full cursor-pointer group shadow-inner">
-            <motion.div 
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              className="absolute top-1/2 -translate-y-1/2 w-8 h-8 bg-white border-4 border-white shadow-[0_8px_20px_rgba(0,0,0,0.15)] rounded-full z-10 cursor-grab active:cursor-grabbing flex items-center justify-center"
-              style={{ left: `${state.emotionScore}%` }}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <div className="w-2 h-2 rounded-full bg-cyan-400" />
-            </motion.div>
-          </div>
-          
-          <div className="flex justify-between items-center px-1">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#FF3B30] shadow-[0_4px_10px_rgba(255,59,48,0.3)]" />
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">积极</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#FFCC00] shadow-[0_4px_10px_rgba(255,204,0,0.3)]" />
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">中性</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#AF52DE] shadow-[0_4px_10px_rgba(175,82,222,0.3)]" />
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">消极</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Memory Management Grid */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-gray-800">记忆管理</h2>
+        <div className="flex gap-3 items-center">
+          <AnimatePresence>
+            {isSearchOpen && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 160, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                className="relative overflow-hidden"
+              >
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder={t('Search memories...')}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-white/40 backdrop-blur-md border border-white/40 rounded-xl px-4 py-2 text-sm focus:outline-none"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
           <motion.button 
-            whileHover={{ x: 5 }}
-            onClick={() => alert('更多管理选项...')}
-            className="text-gray-300 hover:text-cyan-500 transition-colors"
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              setIsSearchOpen(!isSearchOpen);
+              if (isSearchOpen) setSearchTerm('');
+            }}
+            className={`p-3.5 rounded-2xl sculpted-glass border border-white/40 transition-colors hover:bg-white/60 ${isSearchOpen ? 'text-emerald-500' : 'text-slate-600'}`}
           >
-            <ChevronRight size={20} />
+            <Search size={22} strokeWidth={1.5} />
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setIsFilterOpen(true)}
+            className="p-3.5 rounded-2xl sculpted-glass text-slate-600 border border-white/40 transition-colors hover:bg-white/60"
+          >
+            <SlidersHorizontal size={22} strokeWidth={1.5} />
           </motion.button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          {filteredMemories.map((item, i) => (
-            <motion.div 
-              key={i} 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => alert(`打开分类: ${item.title}`)}
-              className="relative rounded-[24px] overflow-hidden aspect-square group cursor-pointer shadow-sm"
-            >
-              <img src={item.img} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt={item.title} referrerPolicy="no-referrer" />
-              {/* Emotion Dot - Randomized */}
-              <div className={`absolute top-3 left-3 w-2.5 h-2.5 rounded-full border border-white shadow-sm ${
-                i % 3 === 0 ? 'bg-red-400' : i % 3 === 1 ? 'bg-emerald-400' : 'bg-purple-400'
-              }`} />
-              {/* White Chevron in top right to match image */}
-              <div className="absolute top-3 right-3 text-white/80">
-                <ChevronRight size={16} className="rotate-[-45deg]" />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4">
-                <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-white font-semibold text-sm">{item.title}</p>
-                    <p className="text-white/70 text-[10px]">{item.count}张记忆</p>
-                  </div>
-                  <ChevronRight size={14} className="text-white/70 mb-1" />
-                </div>
-              </div>
-            </motion.div>
-          ))}
-          <label className="cursor-pointer">
-            <input type="file" className="hidden" accept="image/*" onChange={handleAddMemory} />
-            <motion.div 
-              whileTap={{ scale: 0.98 }}
-              className="bg-gray-200/50 rounded-[24px] aspect-square flex items-center justify-center text-white hover:bg-gray-200 transition-colors"
-            >
-              <div className="w-14 h-14 rounded-full bg-gray-400/30 flex items-center justify-center shadow-inner">
-                <Plus size={36} />
-              </div>
-            </motion.div>
-          </label>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const RelationshipsTab: React.FC<{ state: AppState }> = ({ state }) => {
-  const [isSearching, setIsSearching] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [isFiltering, setIsFiltering] = React.useState(false);
-  const [activeFilter, setActiveFilter] = React.useState('人物');
-  const [timeFilter, setTimeFilter] = React.useState('近一周');
-  const [isTimeMenuOpen, setIsTimeMenuOpen] = React.useState(false);
-
-  const timeOptions = ['近一周', '近一月', '近半年', '近一年'];
-
-  const relationshipNodes = [
-    { name: 'T老师', color: 'rgba(255, 159, 142, 0.6)', size: 68, pos: { top: '15%', left: '12%' }, avatar: '🥦' },
-    { name: '陈雪', color: 'rgba(242, 153, 126, 0.6)', size: 76, pos: { top: '8%', right: '18%' }, avatar: '🥕' },
-    { name: 'leo', color: 'rgba(142, 187, 255, 0.6)', size: 52, pos: { top: '45%', right: '8%' }, avatar: '🦁' },
-    { name: '小梦', color: 'rgba(142, 197, 255, 0.6)', size: 60, pos: { bottom: '12%', right: '22%' }, avatar: '☁️' },
-    { name: '朱朱', color: 'rgba(181, 168, 255, 0.6)', size: 44, pos: { bottom: '22%', left: '22%' }, avatar: '🐷' },
-  ];
-
-  return (
-    <div className="p-6 pb-32 space-y-8 bg-[#F8F9FA] min-h-screen relative overflow-hidden">
-      {/* Background Subtle Glows */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[40%] bg-cyan-100/30 rounded-full blur-[100px]" />
-        <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[30%] bg-purple-100/20 rounded-full blur-[80px]" />
-      </div>
-
-      <header className="relative z-10 flex justify-between items-center">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-medium text-gray-900 serif">关系网</h1>
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">5 Core Connections</p>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => {
-              setIsSearching(!isSearching);
-              setIsFiltering(false);
-            }}
-            className={`p-3 rounded-2xl transition-all ${isSearching ? 'bg-cyan-500 text-white shadow-xl' : 'bg-white text-cyan-500 shadow-sm border border-gray-50'}`}
-          >
-            <Search size={22} />
-          </button>
-          <button 
-            onClick={() => {
-              setIsFiltering(!isFiltering);
-              setIsSearching(false);
-            }}
-            className={`p-3 rounded-2xl transition-all ${isFiltering ? 'bg-cyan-500 text-white shadow-xl' : 'bg-white text-cyan-500 shadow-sm border border-gray-50'}`}
-          >
-            <SlidersHorizontal size={22} />
-          </button>
-        </div>
       </header>
 
-      {/* Search Bar */}
-      <AnimatePresence>
-        {isSearching && (
+      {/* Resonance Spectrum */}
+      <div className="sculpted-glass p-8 rounded-[32px] space-y-8 prism-refraction shadow-2xl">
+        <div className="flex justify-between items-center">
+          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{t('Resonance Spectrum')}</h2>
+          <span className="text-[9px] font-black text-white active-drop px-4 py-1.5 rounded-full uppercase tracking-[0.1em]">{t('Real-time')}</span>
+        </div>
+        <div className="space-y-6">
+          <div className="relative h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <motion.div 
+              className="absolute top-0 left-0 h-full spectrum-gradient"
+              initial={{ width: 0 }}
+              animate={{ width: `${state.emotionScore}%` }}
+              transition={{ duration: 1.5, type: "spring" }}
+            />
+          </div>
+          <div className="flex justify-between text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+            <span className="text-rose-400">{t('Negative')}</span>
+            <span className="text-amber-400">{t('Neutral')}</span>
+            <span className="text-emerald-400">{t('Positive')}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {filteredMemories.map((memory, i) => (
           <motion.div 
-            initial={{ height: 0, opacity: 0, y: -10 }}
-            animate={{ height: 'auto', opacity: 1, y: 0 }}
-            exit={{ height: 0, opacity: 0, y: -10 }}
-            className="overflow-hidden relative z-10"
+            key={memory.id}
+            whileHover={{ y: -8, scale: 1.02 }}
+            onClick={() => setViewerMemory(memory)}
+            onMouseEnter={() => setActivePhoto(memory.id)}
+            onMouseLeave={() => setActivePhoto(null)}
+            className="memory-photo-container aspect-square relative group cursor-pointer prism-refraction shadow-xl"
           >
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input 
-                autoFocus
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索人物或关系..."
-                className="w-full bg-white/60 backdrop-blur-md border border-white rounded-2xl py-3.5 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-cyan-100 focus:outline-none text-sm"
-              />
+            <img 
+              src={memory.imageUrl} 
+              className={`memory-photo ${activePhoto === memory.id ? 'active' : ''}`} 
+              alt={memory.title} 
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
+            
+            {/* Emotion Dot */}
+            <div className="absolute top-4 left-4">
+              <div className={`w-2.5 h-2.5 rounded-full ${getEmotionColor(memory.emotion)} shadow-[0_0_8px_rgba(255,255,255,0.5)]`} />
+            </div>
+
+            <div className="absolute bottom-6 left-6">
+              <h4 className="text-white text-xl font-black tracking-tight">{memory.title}</h4>
+              <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em]">{memory.photoCount} {t('Photos')}</p>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        ))}
+        <motion.div 
+          whileTap={{ scale: 0.95 }} 
+          onClick={() => setIsAddMemoryOpen(true)}
+          className="sculpted-glass rounded-[32px] aspect-square flex items-center justify-center text-slate-300 border-dashed border-2 border-slate-200 cursor-pointer"
+        >
+          <Plus size={48} strokeWidth={1} />
+        </motion.div>
+      </div>
 
-      {/* Filter Overlay */}
-      <AnimatePresence>
-        {isFiltering && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="bg-white/80 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-white space-y-4 z-30 relative"
-          >
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">筛选标准</h3>
-            <div className="flex flex-wrap gap-2">
-              {['按亲密度', '按互动频率', '按最近联系', '仅看家人', '仅看朋友'].map(f => (
-                <button key={f} className="px-4 py-2 bg-white/50 hover:bg-cyan-400 hover:text-white text-[11px] text-gray-500 rounded-full transition-all font-medium border border-gray-100 shadow-sm">
-                  {f}
+      <Modal isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} title={t('Filter Memories')}>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('Sort By')}</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: t('Newest'), value: 'Newest' },
+                { label: t('Oldest'), value: 'Oldest' },
+                { label: t('Emotional'), value: 'Emotional' },
+                { label: t('Random'), value: 'Random' }
+              ].map(sort => (
+                <button key={sort.value} className="px-4 py-3 rounded-2xl bg-white/40 text-slate-600 text-xs font-bold border border-white/40 hover:bg-slate-900 hover:text-white transition-all">
+                  {sort.label}
                 </button>
               ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Filter Tabs */}
-      <div className="relative z-10 bg-gray-200/30 backdrop-blur-md p-1 rounded-2xl flex gap-1 border border-white/50">
-        {['情绪', '人物', '地点'].map((filter) => (
-          <button 
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`flex-1 py-2.5 text-xs font-semibold rounded-xl transition-all ${activeFilter === filter ? 'bg-white shadow-md text-cyan-500' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
-
-      {/* Stats Cards */}
-      <div className="relative z-10 grid grid-cols-3 gap-4">
-        {[
-          { label: '总关系人数', value: '5', icon: Users, color: 'text-cyan-400' },
-          { label: '高频互动', value: '2', icon: BarChart3, color: 'text-cyan-400' },
-          { label: '近期记忆', value: '47', icon: Calendar, color: 'text-cyan-400' },
-        ].map((stat, i) => (
-          <motion.div 
-            key={i} 
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            className="bg-white/70 backdrop-blur-md p-4 rounded-[28px] shadow-sm border border-white space-y-2 flex flex-col items-start cursor-pointer hover:shadow-lg transition-all"
-          >
-            <div className={`p-1.5 rounded-full bg-cyan-50 ${stat.color}`}>
-              <stat.icon size={16} />
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-2xl font-bold text-gray-900 tracking-tight">{stat.value}</p>
-              <p className="text-[9px] text-gray-400 font-bold leading-tight uppercase tracking-wider">{stat.label}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Relationship Graph Card - Liquid Glass Style */}
-      <div className="relative z-10 bg-white/40 backdrop-blur-md p-6 rounded-[40px] shadow-sm border border-white relative h-[320px] flex items-center justify-center overflow-hidden">
-        {/* Connection Lines - Subtle & Animated */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {relationshipNodes.map((node, i) => (
-            <motion.line 
-              key={i}
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 0.3 }}
-              transition={{ duration: 1.5, delay: i * 0.2 }}
-              x1="50%" y1="50%" 
-              x2={node.pos.left || (node.pos.right ? `calc(100% - ${node.pos.right})` : '50%')} 
-              y2={node.pos.top || (node.pos.bottom ? `calc(100% - ${node.pos.bottom})` : '50%')} 
-              stroke="white" strokeWidth="1.5" strokeDasharray="4 4"
-            />
-          ))}
-        </svg>
-
-        {/* Central Node - Breathing Liquid Blob */}
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.08, 1],
-            borderRadius: ["42% 58% 70% 30% / 45% 45% 55% 55%", "58% 42% 30% 70% / 55% 55% 45% 45%", "42% 58% 70% 30% / 45% 45% 55% 55%"]
-          }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          whileHover={{ scale: 1.1 }}
-          className="w-28 h-28 bg-gradient-to-br from-[#8EBC94] to-[#A8D5AD] flex items-center justify-center text-white font-bold text-2xl z-10 shadow-[0_12px_32px_rgba(142,188,148,0.4)] cursor-pointer border border-white/20 backdrop-blur-md rounded-full"
-        >
-          我
-        </motion.div>
-
-        {/* Surrounding Nodes - Glassmorphism Water Drops */}
-        {relationshipNodes.map((node, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1,
-              y: [0, -6, 0]
-            }}
-            transition={{ 
-              opacity: { duration: 0.5, delay: i * 0.1 },
-              scale: { duration: 0.5, delay: i * 0.1 },
-              y: { duration: 4 + Math.random() * 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }
-            }}
-            whileHover={{ scale: 1.1, y: -10 }}
-            className="absolute flex items-center justify-center rounded-full text-white font-bold text-[13px] shadow-lg cursor-pointer z-20 backdrop-blur-xl border border-white/40"
-            style={{ 
-              backgroundColor: node.color, 
-              width: node.size, 
-              height: node.size,
-              ...node.pos,
-              boxShadow: `0 8px 24px ${node.color.replace('0.6', '0.2')}, inset 0 0 12px rgba(255,255,255,0.3)`
-            }}
-          >
-            {node.name}
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Important Relationships List */}
-      <section className="relative z-10 space-y-5">
-        <div className="flex justify-between items-center px-1">
-          <h2 className="text-xl font-bold text-gray-900 tracking-tight">重要关系</h2>
-          <button 
-            onClick={() => alert('查看所有关系列表...')}
-            className="text-xs text-cyan-500 font-bold uppercase tracking-widest hover:underline"
-          >
-            View All
-          </button>
+          </div>
+          <button onClick={() => setIsFilterOpen(false)} className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-sm">{t('Apply Filter')}</button>
         </div>
-        <div className="space-y-5">
-          {[
-            { name: 'T老师', count: 16, avatar: '🥦', colors: ['#FF3B30', '#4CD964'], progress: 60, thumbs: ['https://picsum.photos/seed/t1/120/120', 'https://picsum.photos/seed/t2/120/120', 'https://picsum.photos/seed/t3/120/120'] },
-            { name: '陈雪', count: 12, avatar: '🥕', colors: ['#FF3B30', '#4CD964', '#AF52DE'], progress: 40, thumbs: ['https://picsum.photos/seed/c1/120/120', 'https://picsum.photos/seed/c2/120/120'] },
-          ].map((rel, i) => (
-            <motion.div 
-              key={i} 
-              whileHover={{ y: -4 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => alert(`进入与 ${rel.name} 的专属记忆空间`)}
-              className="bg-white/80 backdrop-blur-md p-6 rounded-[40px] space-y-5 cursor-pointer shadow-sm border border-white hover:shadow-xl transition-all"
-            >
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-gray-50">
-                  {rel.avatar}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg text-gray-900 tracking-tight">{rel.name}</h3>
-                  <p className="text-xs text-gray-400 font-medium">{rel.count}条记忆 · 深度互动</p>
-                </div>
-                <div className="p-2 text-gray-300">
-                  <ChevronRight size={20} />
-                </div>
-              </div>
+      </Modal>
 
-              {/* Thumbnails - Refined */}
-              <div className="flex gap-3 pt-1">
-                {rel.thumbs.map((img, idx) => (
-                  <motion.img 
-                    key={idx} 
-                    whileHover={{ scale: 1.05 }}
-                    src={img} 
-                    className="w-20 h-20 rounded-[24px] object-cover shadow-md border-2 border-white" 
-                    alt="memory" 
-                    referrerPolicy="no-referrer"
-                  />
-                ))}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-};
-
-export const ProfileTab: React.FC<{ state: AppState }> = ({ state }) => {
-  const [showSettings, setShowSettings] = React.useState(false);
-
-  return (
-    <div className="p-6 pb-32 space-y-8 bg-[#F8F9FA] min-h-screen relative">
-      <button 
-        onClick={() => setShowSettings(true)}
-        className="absolute top-8 right-6 text-gray-400 text-sm font-medium hover:text-cyan-500 transition-colors z-20"
-      >
-        设置
-      </button>
-
-      {/* Settings Modal */}
+      {/* Full Screen Image Viewer */}
       <AnimatePresence>
-        {showSettings && (
+        {viewerMemory && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-end justify-center"
-            onClick={() => setShowSettings(false)}
+            onClick={() => setViewerMemory(null)}
+            className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-6"
           >
+            <motion.button 
+              className="absolute top-8 right-8 p-4 text-white/60 hover:text-white"
+              whileTap={{ scale: 0.9 }}
+            >
+              <X size={32} />
+            </motion.button>
+            
             <motion.div 
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="w-full max-w-md bg-white rounded-t-[40px] p-8 space-y-6 shadow-2xl"
+              layoutId={viewerMemory.id}
+              className="w-full max-w-4xl aspect-[4/3] rounded-[40px] overflow-hidden shadow-2xl border border-white/10"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-2" />
-              <h2 className="text-xl font-bold text-gray-900">设置</h2>
-              <div className="space-y-2">
-                {[
-                  { label: '个人资料', icon: User },
-                  { label: '隐私设置', icon: ShieldCheck },
-                  { label: '通知提醒', icon: Bell },
-                  { label: '存储空间', icon: Database },
-                  { label: '关于椰子', icon: Info },
-                ].map((item, i) => (
-                  <button key={i} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-cyan-500 transition-colors">
-                        <item.icon size={20} />
-                      </div>
-                      <span className="font-semibold text-gray-700">{item.label}</span>
-                    </div>
-                    <ChevronRight size={18} className="text-gray-300" />
-                  </button>
-                ))}
-              </div>
-              <button 
-                onClick={() => setShowSettings(false)}
-                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-lg hover:bg-gray-800 transition-colors"
-              >
-                关闭
-              </button>
+              <img 
+                src={viewerMemory.imageUrl} 
+                className="w-full h-full object-cover" 
+                alt={viewerMemory.title} 
+                referrerPolicy="no-referrer"
+              />
+            </motion.div>
+            
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="mt-8 text-center space-y-2"
+            >
+              <h2 className="text-white text-3xl font-black tracking-tight">{viewerMemory.title}</h2>
+              <p className="text-white/40 text-xs font-bold uppercase tracking-[0.3em]">{viewerMemory.photoCount} 张照片 • {viewerMemory.date}</p>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
 
-      <header className="flex flex-col items-center text-center space-y-4 pt-4">
-        <div className="relative">
-          <motion.div 
-            whileHover={{ scale: 1.05 }}
-            className="w-28 h-28 rounded-full bg-white shadow-2xl p-1.5 cursor-pointer overflow-hidden border-4 border-white"
+// --- Relationships Tab ---
+
+export const RelationshipsTab: React.FC<{ state: AppState }> = ({ state }) => {
+  const t = (key: string) => translations[state.language]?.[key] || key;
+  const [activeCategory, setActiveCategory] = useState<'人物' | '时间' | '地点'>('人物');
+
+  const [isViewAllOpen, setIsViewAllOpen] = useState(false);
+
+  const getNodes = () => {
+    switch (activeCategory) {
+      case '人物':
+        return [
+          { name: 'T老师', color: 'bg-rose-100/20', borderColor: 'border-rose-200/30', size: 90, pos: { top: '15%', left: '15%' }, avatar: 'https://picsum.photos/seed/teacher/100/100' },
+          { name: '陈雪', color: 'bg-emerald-100/20', borderColor: 'border-emerald-200/30', size: 100, pos: { top: '10%', right: '20%' }, avatar: 'https://picsum.photos/seed/friend/100/100' },
+          { name: 'Leo', color: 'bg-indigo-100/20', borderColor: 'border-indigo-200/30', size: 80, pos: { top: '45%', right: '10%' }, avatar: 'https://picsum.photos/seed/leo/100/100' },
+          { name: '小梦', color: 'bg-cyan-100/20', borderColor: 'border-cyan-200/30', size: 85, pos: { bottom: '15%', right: '25%' }, avatar: 'https://picsum.photos/seed/dream/100/100' },
+          { name: '朱朱', color: 'bg-purple-100/20', borderColor: 'border-purple-200/30', size: 75, pos: { bottom: '25%', left: '20%' }, avatar: 'https://picsum.photos/seed/zhu/100/100' },
+        ];
+      case '时间':
+        return [
+          { name: '2025.5', color: 'bg-amber-100/20', borderColor: 'border-amber-200/30', size: 95, pos: { top: '18%', left: '18%' } },
+          { name: '2025.11', color: 'bg-amber-100/20', borderColor: 'border-amber-200/30', size: 90, pos: { top: '12%', right: '25%' } },
+          { name: '2024.12', color: 'bg-slate-100/20', borderColor: 'border-slate-200/30', size: 80, pos: { bottom: '22%', right: '18%' } },
+        ];
+      case '地点':
+        return [
+          { name: '景迈山', color: 'bg-emerald-100/20', borderColor: 'border-emerald-200/30', size: 100, pos: { top: '12%', right: '18%' } },
+          { name: '北京', color: 'bg-slate-100/20', borderColor: 'border-slate-200/30', size: 90, pos: { bottom: '18%', left: '18%' } },
+          { name: '上海', color: 'bg-indigo-100/20', borderColor: 'border-indigo-200/30', size: 85, pos: { top: '42%', left: '12%' } },
+        ];
+      default: return [];
+    }
+  };
+
+  const nodes = getNodes();
+
+  return (
+    <div className="p-8 space-y-10 flex-1">
+      <header className="flex justify-between items-end">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{state.language === 'English' ? 'Nexus' : state.language === '日本語' ? 'ネクサス' : state.language === '한국어' ? '넥서스' : '关系网'}</h1>
+          <p className="text-slate-400 text-[10px] font-bold tracking-[0.4em] uppercase">{t('Soul Connection')}</p>
+        </div>
+        <div className="flex bg-white/40 p-1 rounded-2xl border border-white/40 backdrop-blur-md">
+          {([
+            { key: 'People', label: t('People'), value: '人物' },
+            { key: 'Time', label: t('Time'), value: '时间' },
+            { key: 'Places', label: t('Places'), value: '地点' }
+          ] as const).map(cat => (
+            <button
+              key={cat.value}
+              onClick={() => setActiveCategory(cat.value as any)}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${activeCategory === cat.value ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {/* Centered Me with Liquid Glass Connections */}
+      <div className="sculpted-glass rounded-[48px] h-[480px] relative flex items-center justify-center overflow-hidden prism-refraction shadow-2xl">
+        {/* Background Organic Shapes */}
+        <div className="absolute inset-0 opacity-20 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-slate-200 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-amber-100 rounded-full blur-3xl animate-pulse" />
+        </div>
+
+        {/* Central "Me" Node - Liquid Glass Gradient */}
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.08, 1],
+            rotate: [0, 5, -5, 0],
+            borderRadius: [
+              "60% 40% 30% 70% / 60% 30% 70% 40%",
+              "30% 60% 70% 40% / 50% 60% 30% 60%",
+              "60% 40% 30% 70% / 60% 30% 70% 40%"
+            ]
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="w-40 h-40 bg-gradient-to-br from-slate-700 to-slate-900 rounded-full flex items-center justify-center text-white font-black text-2xl z-20 shadow-[0_20px_50px_rgba(0,0,0,0.3)] breathe-soft border border-white/20 backdrop-blur-2xl"
+        >
+          {t('Me')}
+        </motion.div>
+
+        {/* Relationship Nodes - Water Drop Glass */}
+        <AnimatePresence mode="popLayout">
+          <motion.div key={activeCategory} className="absolute inset-0">
+            {nodes.map((node, i) => (
+              <motion.div 
+                key={node.name}
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ 
+                  opacity: 1, 
+                  scale: 1,
+                  y: [0, -15, 0],
+                  x: [0, 8, 0],
+                  borderRadius: [
+                    "60% 40% 30% 70% / 60% 30% 70% 40%",
+                    "40% 60% 50% 50% / 40% 40% 60% 60%",
+                    "60% 40% 30% 70% / 60% 30% 70% 40%"
+                  ]
+                }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={{ 
+                  opacity: { duration: 0.2 },
+                  scale: { duration: 0.3, type: "spring", bounce: 0.4 },
+                  y: { duration: 3 + i, repeat: Infinity, ease: "easeInOut" },
+                  borderRadius: { duration: 5 + i, repeat: Infinity, ease: "easeInOut" }
+                }}
+                whileHover={{ scale: 1.1, zIndex: 30 }}
+                className={`absolute water-drop ${node.color} ${node.borderColor} group`}
+                style={{ width: node.size, height: node.size, ...node.pos }}
+              >
+                <div className="flex flex-col items-center justify-center text-center p-2">
+                  {node.avatar && (
+                    <div className="w-10 h-10 rounded-full overflow-hidden mb-1 border border-white/40 shadow-inner opacity-80 group-hover:opacity-100 transition-opacity">
+                      <img src={node.avatar} className="w-full h-full object-cover" alt={node.name} referrerPolicy="no-referrer" />
+                    </div>
+                  )}
+                  <span className="text-slate-700 font-bold text-[10px] tracking-tight group-hover:text-slate-900 transition-colors">
+                    {node.name}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <div className="space-y-6">
+        <div className="flex justify-between items-center px-2">
+          <h2 className="text-slate-900 text-xl font-black tracking-tight">{state.language === 'English' ? 'Recent Interactions' : state.language === '日本語' ? '最近の交流' : state.language === '한국어' ? '최근 상호작용' : '最近互动'}</h2>
+          <button 
+            onClick={() => setIsViewAllOpen(true)}
+            className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
           >
+            {state.language === 'English' ? 'View All' : state.language === '日本語' ? 'すべて表示' : state.language === '한국어' ? '모두 보기' : '查看全部'}
+          </button>
+        </div>
+        {[
+          { name: 'T老师', count: 16, avatar: 'https://picsum.photos/seed/teacher/100/100', color: 'bg-rose-100/50' },
+          { name: '陈雪', count: 12, avatar: 'https://picsum.photos/seed/friend/100/100', color: 'bg-emerald-100/50' },
+        ].map((rel, i) => (
+          <motion.div 
+            key={i}
+            whileHover={{ x: 10, scale: 1.02 }}
+            className="sculpted-glass p-6 rounded-[32px] flex items-center gap-6 cursor-pointer prism-refraction border border-white/20"
+          >
+            <div className={`w-16 h-16 rounded-2xl ${rel.color} overflow-hidden shadow-inner`}>
+              <img src={rel.avatar} className="w-full h-full object-cover" alt={rel.name} referrerPolicy="no-referrer" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-slate-900 text-2xl font-black tracking-tight">{rel.name}</h3>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">{rel.count} {state.language === 'English' ? 'shared memories' : state.language === '日本語' ? '共有された思い出' : state.language === '한국어' ? '공유된 추억' : '个共同记忆'}</p>
+            </div>
+            <ChevronRight size={24} className="text-slate-300" />
+          </motion.div>
+        ))}
+      </div>
+
+      <Modal isOpen={isViewAllOpen} onClose={() => setIsViewAllOpen(false)} title={t('Soul Connection')}>
+        <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar pr-2">
+          {[
+            { name: 'T老师', count: 16, avatar: 'https://picsum.photos/seed/teacher/100/100', color: 'bg-rose-100/50' },
+            { name: '陈雪', count: 12, avatar: 'https://picsum.photos/seed/friend/100/100', color: 'bg-emerald-100/50' },
+            { name: '妈妈', count: 45, avatar: 'https://picsum.photos/seed/mom/100/100', color: 'bg-amber-100/50' },
+            { name: '老王', count: 8, avatar: 'https://picsum.photos/seed/neighbor/100/100', color: 'bg-slate-100/50' },
+            { name: '小李', count: 5, avatar: 'https://picsum.photos/seed/colleague/100/100', color: 'bg-blue-100/50' },
+          ].map((rel, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 sculpted-glass rounded-2xl border border-white/20">
+              <img src={rel.avatar} className="w-12 h-12 rounded-xl object-cover" alt={rel.name} referrerPolicy="no-referrer" />
+              <div className="flex-1">
+                <p className="text-sm font-black text-slate-900">{rel.name}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rel.count} {t('Photos')}</p>
+              </div>
+              <ChevronRight size={18} className="text-slate-300" />
+            </div>
+          ))}
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+// --- Profile Tab ---
+
+export const ProfileTab: React.FC<{ 
+  state: AppState, 
+  mood?: string, 
+  onMoodChange?: (mood: any) => void,
+  onUpdateState?: (updates: Partial<AppState>) => void
+}> = ({ state, mood, onMoodChange, onUpdateState }) => {
+  const t = (key: string) => translations[state.language]?.[key] || key;
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeSetting, setActiveSetting] = useState<string | null>(null);
+  
+  // Local state for interactivity
+  const [settingsState, setSettingsState] = useState({
+    faceId: true,
+    encryption: true,
+    stealth: false,
+    reminders: true,
+    insights: false,
+    milestones: true,
+    displayName: 'Memoa 用户',
+    email: 'yezi128517@gmail.com',
+    phone: '+86 138 **** 5678',
+    region: '上海, 中国',
+    language: state.language
+  });
+
+  const [isCustomColorOpen, setIsCustomColorOpen] = useState(false);
+  const [customColors, setCustomColors] = useState(['#f472b6', '#fef08a', '#22d3ee']);
+
+  const handleCustomColorChange = (index: number, value: string) => {
+    const newColors = [...customColors];
+    newColors[index] = value;
+    setCustomColors(newColors);
+    // Convert hex to tailwind-like classes or just pass raw colors if supported
+    // For simplicity, we'll map these to the state.customMoodColors in App.tsx
+    // But since we can't easily map hex to tailwind bg- classes, 
+    // I'll just simulate it by updating the state with a special format if needed.
+    onUpdateState?.({ 
+      customMoodColors: newColors.map(c => `bg-[${c}]/20`) 
+    });
+  };
+
+  const handleApplyCustomColors = () => {
+    onUpdateState?.({ 
+      customMoodColors: customColors.map(c => `bg-[${c}]/20`) 
+    });
+    onMoodChange?.('custom');
+    setIsCustomColorOpen(false);
+  };
+
+  const handleSettingClick = (key: string) => {
+    setActiveSetting(key);
+    setIsSettingsOpen(true);
+  };
+
+  const toggleSetting = (key: keyof typeof settingsState) => {
+    setSettingsState(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const [isBackingUp, setIsBackingUp] = useState(false);
+
+  const handleBackup = () => {
+    setIsBackingUp(true);
+    setTimeout(() => setIsBackingUp(false), 2000);
+  };
+
+  const getSettingContent = () => {
+    switch (activeSetting) {
+      case 'profile':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-5 rounded-3xl bg-white/40 border border-white/40 shadow-sm">
+              <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden border-2 border-white relative group">
+                <img src="https://picsum.photos/seed/memoa-user/400/400" alt="avatar" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
+                  <ImageIcon size={16} className="text-white" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="text" 
+                  value={settingsState.displayName} 
+                  onChange={(e) => setSettingsState(prev => ({ ...prev, displayName: e.target.value }))}
+                  className="bg-transparent text-lg font-black text-slate-900 focus:outline-none w-full" 
+                />
+                <p className="text-xs text-slate-400">{t('Memory Architect')}</p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">{t('Account Details')}</p>
+              <div className="sculpted-glass rounded-3xl overflow-hidden border border-white/40">
+                <div className="p-4 flex flex-col gap-1 border-b border-white/20">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t('Email')}</label>
+                  <input 
+                    type="email" 
+                    value={settingsState.email} 
+                    onChange={(e) => setSettingsState(prev => ({ ...prev, email: e.target.value }))}
+                    className="bg-transparent text-sm font-bold text-slate-900 focus:outline-none" 
+                  />
+                </div>
+                <div className="p-4 flex flex-col gap-1 border-b border-white/20">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t('Phone')}</label>
+                  <input 
+                    type="text" 
+                    value={settingsState.phone} 
+                    onChange={(e) => setSettingsState(prev => ({ ...prev, phone: e.target.value }))}
+                    className="bg-transparent text-sm font-bold text-slate-900 focus:outline-none" 
+                  />
+                </div>
+                <div className="p-4 flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t('Region')}</label>
+                  <select 
+                    value={settingsState.region}
+                    onChange={(e) => setSettingsState(prev => ({ ...prev, region: e.target.value }))}
+                    className="bg-transparent text-sm font-bold text-slate-900 focus:outline-none appearance-none"
+                  >
+                    <option>{state.language === 'English' ? 'Shanghai, China' : '上海, 中国'}</option>
+                    <option>{state.language === 'English' ? 'Beijing, China' : '北京, 中国'}</option>
+                    <option>{state.language === 'English' ? 'Tokyo, Japan' : '东京, 日本'}</option>
+                    <option>{state.language === 'English' ? 'New York, USA' : '纽约, 美国'}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button onClick={() => setIsSettingsOpen(false)} className="w-full py-4 active-drop text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">{t('Save All Changes')}</button>
+          </div>
+        );
+      case 'privacy':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">{t('Security Layers')}</p>
+              <div className="sculpted-glass rounded-3xl overflow-hidden border border-white/40">
+                <div className="p-4 flex justify-between items-center border-b border-white/20">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-900">{t('Face ID Lock')}</p>
+                    <p className="text-[10px] text-slate-400">{t('Protect your memories with biometrics')}</p>
+                  </div>
+                  <button 
+                    onClick={() => toggleSetting('faceId')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.faceId ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.faceId ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+                <div className="p-4 flex justify-between items-center border-b border-white/20">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-900">{t('End-to-End Encryption')}</p>
+                    <p className="text-[10px] text-slate-400">{t('Only you can access your data')}</p>
+                  </div>
+                  <button 
+                    onClick={() => toggleSetting('encryption')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.encryption ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.encryption ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+                <div className="p-4 flex justify-between items-center">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-900">{t('Stealth Mode')}</p>
+                    <p className="text-[10px] text-slate-400">{t('Hide sensitive memories from main grid')}</p>
+                  </div>
+                  <button 
+                    onClick={() => toggleSetting('stealth')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.stealth ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.stealth ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button className="w-full py-4 sculpted-glass text-rose-500 border border-rose-100 rounded-2xl text-[10px] font-black uppercase tracking-widest">{t('Clear All Cache')}</button>
+          </div>
+        );
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+             <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">{t('Reminder Preferences')}</p>
+              <div className="sculpted-glass rounded-3xl overflow-hidden border border-white/40">
+                <div className="p-4 flex justify-between items-center border-b border-white/20">
+                  <span className="text-sm font-bold text-slate-900">{t('Memory Reminders')}</span>
+                  <button 
+                    onClick={() => toggleSetting('reminders')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.reminders ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.reminders ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+                <div className="p-4 flex justify-between items-center border-b border-white/20">
+                  <span className="text-sm font-bold text-slate-900">{t('AI Insights')}</span>
+                  <button 
+                    onClick={() => toggleSetting('insights')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.insights ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.insights ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+                <div className="p-4 flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-900">{t('Relationship Milestones')}</span>
+                  <button 
+                    onClick={() => toggleSetting('milestones')}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${settingsState.milestones ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: settingsState.milestones ? 22 : 4 }}
+                      className="absolute top-1 w-3 h-3 bg-white rounded-full" 
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'storage':
+        return (
+          <div className="space-y-6">
+            <div className="sculpted-glass p-6 rounded-3xl border border-white/40 space-y-6">
+              <div className="flex justify-between items-end">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('Current Plan')}</p>
+                  <p className="text-xl font-black text-slate-900">{t('Prism Premium')}</p>
+                </div>
+                <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">{t('Active')}</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span>{t('Usage')}</span>
+                  <span>{state.storageUsage}%</span>
+                </div>
+                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${state.storageUsage}%` }}
+                    className="h-full bg-emerald-400" 
+                  />
+                </div>
+                <p className="text-[9px] text-slate-400 text-right">{t('Used')} 8.8 GB {t('of')} 10 GB</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">{t('Storage Actions')}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={handleBackup}
+                  disabled={isBackingUp}
+                  className="p-4 sculpted-glass rounded-2xl text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-white/40 transition-colors disabled:opacity-50"
+                >
+                  {isBackingUp ? t('Backing up...') : t('Backup Now')}
+                </button>
+                <button className="p-4 sculpted-glass rounded-2xl text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-white/40 transition-colors">
+                  {t('Export Data')}
+                </button>
+              </div>
+            </div>
+
+            <button className="w-full py-4 active-drop text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">{t('Upgrade to Unlimited')}</button>
+          </div>
+        );
+      case 'language':
+        return (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">{t('Select Language')}</p>
+              <div className="sculpted-glass rounded-3xl overflow-hidden border border-white/40">
+                {['简体中文', 'English', '日本語', '한국어'].map((lang) => (
+                  <button 
+                    key={lang}
+                    onClick={() => setSettingsState(prev => ({ ...prev, language: lang }))}
+                    className="w-full p-4 flex justify-between items-center border-b border-white/20 last:border-none hover:bg-white/20 transition-colors"
+                  >
+                    <span className={`text-sm ${settingsState.language === lang ? 'font-black text-emerald-500' : 'font-bold text-slate-900'}`}>{lang}</span>
+                    {settingsState.language === lang && <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                onUpdateState?.({ language: settingsState.language });
+                setIsSettingsOpen(false);
+              }} 
+              className="w-full py-4 active-drop text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg"
+            >
+              {t('Save and Apply')}
+            </button>
+          </div>
+        );
+      default:
+        return <p className="text-sm text-slate-500">{t('Settings content coming soon...')}</p>;
+    }
+  };
+
+  return (
+    <div className="p-8 space-y-12 flex flex-col items-center flex-1">
+      <header className="w-full relative text-center space-y-8 pt-6">
+        <motion.button
+          whileHover={{ scale: 1.1, rotate: 90 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsSettingsOpen(true)}
+          className="absolute top-0 right-0 p-4 text-slate-400 hover:text-slate-900 transition-colors"
+        >
+          <Settings size={24} strokeWidth={1.5} />
+        </motion.button>
+        <div className="relative inline-block">
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            className="absolute -inset-8 rounded-full border border-dashed border-slate-400/20"
+          />
+          <div className="w-40 h-40 rounded-full sculpted-glass prism-refraction p-1.5 shadow-2xl border border-white/40">
             <img 
-              src="https://images.unsplash.com/photo-1543158181-e6f9f670c5b5?auto=format&fit=crop&q=80&w=400" 
+              src="https://picsum.photos/seed/memoa-user/400/400" 
               className="w-full h-full rounded-full object-cover" 
               alt="avatar" 
               referrerPolicy="no-referrer"
             />
-          </motion.div>
-          <div className="absolute bottom-1 right-1 w-7 h-7 bg-emerald-400 border-4 border-white rounded-full shadow-lg" />
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-medium text-gray-900 serif">椰子</h1>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">Digital Memory Space</p>
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{t('Memoa User')}</h1>
+          <p className="text-slate-400 text-[10px] font-bold tracking-[0.4em] uppercase">{t('Memory Architect')}</p>
         </div>
       </header>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 space-y-2">
-          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">记忆连续</p>
-          <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-gray-900">12</span>
-            <span className="text-emerald-500 text-xs font-bold mb-1">天</span>
+      {/* Atmosphere Mood Selector */}
+      <section className="w-full sculpted-glass p-8 rounded-[32px] space-y-6 prism-refraction">
+        <div className="flex items-center gap-3">
+          <Palette size={18} className="text-slate-500" strokeWidth={1.5} />
+          <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">{t('Atmosphere Mood')}</h2>
+        </div>
+        <div className="grid grid-cols-4 gap-4 w-full px-4">
+          {[
+            { id: 'serene', color: 'bg-slate-500', label: t('Serene') },
+            { id: 'energetic', color: 'bg-yellow-400', label: t('Energetic') },
+            { id: 'warm', color: 'bg-orange-500', label: t('Warm') },
+            { id: 'mystic', color: 'bg-emerald-600', label: t('Mystic') },
+            { id: 'crimson', color: 'bg-rose-500', label: t('Crimson') },
+            { id: 'teal', color: 'bg-cyan-400', label: t('Teal') },
+            { id: 'slate', color: 'bg-slate-800', label: t('Slate') },
+            { id: 'custom', color: 'bg-gradient-to-tr from-pink-400 via-yellow-200 to-cyan-400', label: t('Custom') },
+          ].map((m) => (
+            <motion.button 
+              key={m.id}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                if (m.id === 'custom') {
+                  setIsCustomColorOpen(true);
+                }
+                onMoodChange?.(m.id);
+              }}
+              className={`group relative aspect-square rounded-2xl ${m.color} shadow-lg border-2 ${mood === m.id ? 'border-emerald-400' : 'border-white/40'} flex items-center justify-center`}
+            >
+              <span className="absolute -bottom-5 opacity-0 group-hover:opacity-100 text-[7px] font-bold text-slate-400 uppercase tracking-widest transition-opacity whitespace-nowrap">
+                {m.label}
+              </span>
+            </motion.button>
+          ))}
+        </div>
+      </section>
+
+      <Modal isOpen={isCustomColorOpen} onClose={() => setIsCustomColorOpen(false)} title={t('Custom Atmosphere')}>
+        <div className="space-y-6">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('Choose 3 colors for your aurora')}</p>
+          <div className="flex justify-between gap-4">
+            {customColors.map((color, i) => (
+              <div key={i} className="flex flex-col items-center gap-2">
+                <input 
+                  type="color" 
+                  value={color} 
+                  onChange={(e) => handleCustomColorChange(i, e.target.value)}
+                  className="w-12 h-12 rounded-xl cursor-pointer border-none bg-transparent"
+                />
+                <span className="text-[8px] font-mono text-slate-400">{color}</span>
+              </div>
+            ))}
           </div>
-          <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-400 w-[60%]" />
+          <button 
+            onClick={handleApplyCustomColors}
+            className="w-full py-4 active-drop text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg"
+          >
+            {t('Apply Colors')}
+          </button>
+        </div>
+      </Modal>
+
+      <div className="grid grid-cols-2 gap-6 w-full">
+        <div className="sculpted-glass p-8 rounded-[32px] space-y-2 prism-refraction">
+          <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em]">{t('Streak')}</p>
+          <div className="flex items-end gap-1">
+            <span className="text-4xl font-black text-slate-900">12</span>
+            <span className="text-slate-400 text-[10px] mb-1.5 font-bold uppercase">{t('Days')}</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-50 space-y-2">
-          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">情绪平衡</p>
-          <div className="flex items-end gap-2">
-            <span className="text-3xl font-bold text-gray-900">88</span>
-            <span className="text-cyan-500 text-xs font-bold mb-1">%</span>
-          </div>
-          <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-400 w-[88%]" />
+        <div className="sculpted-glass p-8 rounded-[32px] space-y-2 prism-refraction">
+          <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em]">{t('Balance')}</p>
+          <div className="flex items-end gap-1">
+            <span className="text-4xl font-black text-slate-900">88</span>
+            <span className="text-slate-400 text-[10px] mb-1.5 font-bold uppercase">%</span>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="w-full space-y-4">
         {[
-          { label: '总记忆', value: '5867', icon: Heart, color: 'bg-pink-50 text-pink-400', tab: '记忆' },
-          { label: '关系', value: '32', icon: Users, color: 'bg-blue-50 text-blue-400', tab: '关系' },
-          { label: '今日', value: '7', icon: Calendar, color: 'bg-emerald-50 text-emerald-400', tab: '主页' },
-          { label: '积极指数', value: '88%', icon: BarChart3, color: 'bg-purple-50 text-purple-400', tab: 'AI助手' },
-        ].map((stat, i) => (
-          <motion.div 
-            key={i} 
-            whileTap={{ scale: 0.95 }}
-            onClick={() => window.dispatchEvent(new CustomEvent('setTab', { detail: stat.tab }))}
-            className="bg-white p-3 rounded-2xl shadow-sm space-y-2 text-center cursor-pointer hover:shadow-md transition-shadow"
+          { key: 'profile', label: t('Profile Settings'), icon: User },
+          { key: 'language', label: t('Language Settings'), icon: SlidersHorizontal },
+          { key: 'privacy', label: t('Privacy & Security'), icon: ShieldCheck },
+          { key: 'notifications', label: t('Notifications'), icon: Bell },
+          { key: 'storage', label: t('Cloud Storage'), icon: Database },
+        ].map((item, i) => (
+          <motion.button 
+            key={i}
+            whileHover={{ x: 8, backgroundColor: 'rgba(255,255,255,0.2)' }}
+            onClick={() => handleSettingClick(item.key)}
+            className="w-full sculpted-glass p-6 rounded-[28px] flex items-center justify-between text-slate-500 hover:text-slate-900 transition-all prism-refraction"
           >
-            <div className={`w-8 h-8 mx-auto rounded-xl ${stat.color} flex items-center justify-center`}>
-              <stat.icon size={16} />
+            <div className="flex items-center gap-5">
+              <item.icon size={22} strokeWidth={1.5} />
+              <span className="text-sm font-bold tracking-tight uppercase">{item.label}</span>
             </div>
-            <div className="space-y-0.5">
-              <p className="text-sm font-bold text-gray-900">{stat.value}</p>
-              <p className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">{stat.label}</p>
-            </div>
-          </motion.div>
+            <ChevronRight size={22} className="text-slate-300" />
+          </motion.button>
         ))}
       </div>
 
-      {/* Recent Memories */}
-      <section className="space-y-4">
-        <div className="flex justify-between items-center px-1">
-          <h2 className="text-lg font-bold text-gray-900">最近记忆</h2>
-          <button onClick={() => window.dispatchEvent(new CustomEvent('setTab', { detail: '记忆' }))}>
-            <ChevronRight size={20} className="text-gray-300" />
-          </button>
-        </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-          {[
-            { title: '山林徒步', date: '2月24日', img: 'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&q=80&w=300' },
-            { title: '咖啡馆', date: '3月3日', img: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=300' },
-            { title: '上海city walk', date: '3月6日', img: 'https://picsum.photos/seed/walk/150/200' },
-          ].map((item, i) => (
-            <motion.div 
-              key={i} 
-              whileTap={{ scale: 0.95 }}
-              onClick={() => alert(`查看记忆详情: ${item.title}`)}
-              className="flex-shrink-0 w-32 space-y-2 cursor-pointer"
-            >
-              <img src={item.img} className="w-full h-32 object-cover rounded-[24px] shadow-sm" alt={item.title} referrerPolicy="no-referrer" />
-              <div className="px-1">
-                <p className="text-xs font-bold text-gray-800 truncate">{item.title}</p>
-                <p className="text-[10px] text-gray-400 font-medium">{item.date}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+      <button className="text-slate-300 text-[10px] font-bold uppercase tracking-[0.6em] hover:text-slate-500 transition-colors pt-8">
+        {t('Log Out')}
+      </button>
 
-      {/* Emotion Trend - Line Chart Fixed */}
-      <section className="bg-white p-6 rounded-[32px] shadow-sm space-y-6 cursor-pointer hover:shadow-md transition-shadow overflow-hidden">
-        <h2 className="text-sm font-bold text-gray-800">情绪趋势</h2>
-        <div className="relative h-24 w-full">
-          {/* Grid Lines */}
-          <div className="absolute inset-0 flex flex-col justify-between opacity-10">
-            <div className="h-px w-full bg-gray-400" />
-            <div className="h-px w-full bg-gray-400" />
-            <div className="h-px w-full bg-gray-400" />
-          </div>
-          
-          {/* Line Chart SVG with ViewBox for scaling */}
-          <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
-            <motion.path 
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{ duration: 1.5 }}
-              d="M 0 80 Q 50 20 100 60 T 200 40 T 300 10" 
-              fill="none" 
-              stroke="url(#lineGradient)" 
-              strokeWidth="4"
-              strokeLinecap="round"
-              style={{ vectorEffect: 'non-scaling-stroke' }}
-            />
-            <defs>
-              <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#4CD964" />
-                <stop offset="50%" stopColor="#FFCC00" />
-                <stop offset="100%" stopColor="#FF3B30" />
-              </linearGradient>
-            </defs>
-            {/* Dots inside SVG to ensure alignment */}
-            <circle cx="0" cy="80" r="5" fill="#4CD964" />
-            <circle cx="100" cy="60" r="5" fill="#FFCC00" />
-            <circle cx="200" cy="40" r="5" fill="#FF9500" />
-            <circle cx="300" cy="10" r="5" fill="#FF3B30" />
-          </svg>
-
-          {/* X-Axis Labels */}
-          <div className="absolute -bottom-6 inset-x-0 flex justify-between text-[9px] font-bold text-gray-300 uppercase tracking-widest">
-            <span>3/1</span>
-            <span>3/3</span>
-            <span>3/7</span>
-            <span>今天</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Relationship Overview */}
-      <section className="bg-white p-6 rounded-[32px] shadow-sm space-y-6 cursor-pointer hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-bold text-gray-800">关系概览</h2>
-          <button onClick={() => window.dispatchEvent(new CustomEvent('setTab', { detail: '关系' }))}>
-            <ChevronRight size={16} className="text-gray-300" />
-          </button>
-        </div>
-        <div className="space-y-5">
-          {[
-            { name: 'T老师', count: 16, avatar: '🥦' },
-            { name: '陈雪', count: 12, avatar: '🥕' },
-          ].map((rel, i) => (
-            <div 
-              key={i} 
-              className="flex items-center gap-4 cursor-pointer hover:bg-gray-50 p-2 rounded-xl transition-colors"
-              onClick={() => window.dispatchEvent(new CustomEvent('setTab', { detail: '关系' }))}
-            >
-              <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-xl shadow-inner border border-gray-100">
-                {rel.avatar}
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-gray-900">{rel.name}</h3>
-                <p className="text-[10px] text-gray-400 font-medium">{rel.count}条记忆</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <Modal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        title={
+          activeSetting === 'profile' ? t('Profile Settings') :
+          activeSetting === 'language' ? t('Language Settings') :
+          activeSetting === 'privacy' ? t('Privacy & Security') :
+          activeSetting === 'notifications' ? t('Notifications') :
+          activeSetting === 'storage' ? t('Cloud Storage') :
+          t('Settings')
+        }
+      >
+        {getSettingContent()}
+      </Modal>
     </div>
   );
 };

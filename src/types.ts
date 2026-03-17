@@ -4,6 +4,7 @@ export interface MemoryCard {
   id: string;
   title: string;
   date: string;
+  photoCount: number;
   tags: string[];
   imageUrl: string;
   emotion: number; // 0-100
@@ -18,6 +19,13 @@ export interface Relationship {
   memoryCount: number;
 }
 
+export interface MusicApp {
+  id: string;
+  name: string;
+  url?: string;
+  type: 'spotify' | 'apple' | 'custom';
+}
+
 export interface AppState {
   activeTab: TabType;
   storageUsage: number;
@@ -26,4 +34,11 @@ export interface AppState {
   memories: MemoryCard[];
   aiColors: string[]; // Colors for the central liquid body
   featuredLiked: boolean;
+  musicApps: MusicApp[];
+  language: string;
+}
+
+export interface BottomNavProps {
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
 }
